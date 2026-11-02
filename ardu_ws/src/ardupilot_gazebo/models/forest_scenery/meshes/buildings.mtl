@@ -1,0 +1,18 @@
+newmtl mud
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.05 0.05 0.05
+Ns 10
+d 1
+illum 2
+map_Kd mud.png
+
+newmtl thatch
+Ka 1 1 1
+Kd 1 1 1
+Ks 0.05 0.05 0.05
+Ns 10
+d 1
+illum 2
+map_Kd thatch.png
+

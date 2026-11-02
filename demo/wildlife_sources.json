@@ -1,0 +1,21 @@
+{
+  "sources": {},
+  "timeline": {
+    "IDLE": 1.0,
+    "level_none": 1.0,
+    "level_watch": 38.2,
+    "ARMING": 39.2,
+    "CLIMBING": 40.2,
+    "INTERCEPT": 53.2,
+    "TRACKING": 57.9,
+    "level_warning": 83.6,
+    "level_critical": 130.5,
+    "villager_report": 231.5,
+    "RETURNING": 418.3,
+    "LANDING": 425.7,
+    "COMPLETE": 465.0,
+    "tower_alert": 39.2,
+    "drone_visual": 57.9
+  },
+  "src": {}
+}

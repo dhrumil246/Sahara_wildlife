@@ -1,0 +1,61 @@
+# colcon build outputs (regenerate with colcon build)
+build/
+install/
+log/
+logs/
+
+# Upstream repos, fetched from ardu_ws/deps.repos
+/ardu_ws/src/ardupilot/
+/ardu_ws/src/ros_gz/
+/ardu_ws/src/ardupilot_sitl_models/
+/ardu_ws/src/micro_ros_agent/
+/ardu_ws/src/Micro-XRCE-DDS-Gen/
+/ardu_ws/src/sdformat_urdf/
+
+# SITL / MAVProxy runtime files
+eeprom.bin
+mav.parm
+*.tlog
+*.tlog.raw
+*.BIN
+terrain/
+
+# Unused model weights (yolov8m.pt and thermal_best.pt are used and committed)
+/ardu_ws/yolov8n.pt
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Secrets (Telegram token etc. come from the environment)
+.env
+.env.*
+
+# Raw footage, stock clips and renders: the film is linked from the README,
+# GitHub rejects files > 100 MB, and the campus clips show people's faces.
+/raw-videos/
+/demo/out/
+/demo/live_elephant_video.mp4
+/promo/out/
+*.mp4
+*.mov
+*.MOV
+*.MP4
+*.wav
+*.mp3
+
+# Documents that are not code: the organisers' brief, slides and drafts
+/AI for Human-Wildlife Conflict Team Brief (PS000183).pdf
+*.pdf
+/ppt/
+/ppt.zip
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Code from earlier projects this repo was forked from, not used here
+/sahara_ai/
+/ros2_ws/src/resq_mesh_core/

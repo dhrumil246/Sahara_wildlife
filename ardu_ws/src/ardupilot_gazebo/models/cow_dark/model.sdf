@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!-- cow_dark: 1.4 m tall, body along +X, feet at z=0. Visual only: no
+     collision, like the region scenery, so moving it costs no physics.
+     The GLB is Y-up; Gazebo loads it as-is, hence the +90 deg roll. -->
+<sdf version="1.9">
+  <model name="cow_dark">
+    <static>true</static>
+    <link name="body">
+      <visual name="visual">
+        <pose>-0.2914 0.0163 -0.2822 1.5708 0 1.5708</pose>
+        <geometry><mesh><uri>model://cow_dark/meshes/model.glb</uri><scale>0.610618 0.610618 0.610618</scale></mesh></geometry>
+        <!-- Skin temperature for the thermal cameras (ground is ~288 K). -->
+        <plugin filename="gz-sim-thermal-system" name="gz::sim::systems::Thermal"><temperature>304</temperature></plugin>
+      </visual>
+    </link>
+  </model>
+</sdf>

@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!-- elephant_tusker: 3.0 m tall, body along +X, feet at z=0. Visual only: no
+     collision, like the region scenery, so moving it costs no physics.
+     The GLB is Y-up; Gazebo loads it as-is, hence the +90 deg roll. -->
+<sdf version="1.9">
+  <model name="elephant_tusker">
+    <static>true</static>
+    <link name="body">
+      <visual name="visual">
+        <pose>0.0322 0.0000 0.0081 1.5708 0 0.0000</pose>
+        <geometry><mesh><uri>model://elephant_tusker/meshes/model.glb</uri><scale>2.694297 2.694297 2.694297</scale></mesh></geometry>
+        <!-- Skin temperature for the thermal cameras (ground is ~288 K). -->
+        <plugin filename="gz-sim-thermal-system" name="gz::sim::systems::Thermal"><temperature>302</temperature></plugin>
+      </visual>
+    </link>
+  </model>
+</sdf>

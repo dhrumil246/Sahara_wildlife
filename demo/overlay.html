@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SAHARA Demo Overlay</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=block" rel="stylesheet">
+<style>
+/* Foreground layer of the demo edit. Everything outside the footage "holes" is
+   painted here; the holes stay transparent so the video underneath shows through.
+   Deterministic: renderAt(t) paints edit time t. */
+:root {
+  --paper: #F4F3EF; --ink: #0E1422; --ink2: #2A3345; --dim: #667085; --faint: #98A2B3;
+  --orange: #F97316; --orange-d: #EA580C; --green: #16A34A; --red: #DC2626; --blue: #2563EB;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: transparent; }
+#stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; font-family: Inter, system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+.abs { position: absolute; }
+.mask { overflow: hidden; padding: 0 .06em .1em; margin: 0 -.06em; }
+.rise { display: block; }
+.num { font-family: var(--mono); font-size: 20px; font-weight: 700; letter-spacing: .16em; color: var(--orange-d); display: flex; align-items: center; gap: 12px; }
+.num i { width: 34px; height: 2px; background: var(--orange); display: inline-block; }
+.title { font-weight: 800; letter-spacing: -.045em; line-height: 1.02; }
+.sub { color: var(--dim); font-weight: 500; letter-spacing: -.01em; line-height: 1.35; }
+.badge { display: inline-flex; align-items: center; gap: 9px; height: 38px; padding: 0 16px; border-radius: 999px; background: #fff; border: 1px solid rgba(14,20,34,.08); box-shadow: 0 6px 16px -8px rgba(14,20,34,.25); font-family: var(--mono); font-size: 14px; font-weight: 700; letter-spacing: .08em; white-space: nowrap; }
+.badge .d { width: 9px; height: 9px; border-radius: 50%; }
+.cardtag { position: absolute; display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 9px; background: rgba(255,255,255,.93); font-family: var(--mono); font-size: 12.5px; font-weight: 700; letter-spacing: .1em; color: var(--ink); box-shadow: 0 4px 14px -6px rgba(0,0,0,.45); }
+.fact { display: flex; gap: 16px; align-items: flex-start; padding: 18px 22px; border-radius: 16px; background: #fff; border: 1px solid rgba(14,20,34,.07); box-shadow: 0 1px 2px rgba(14,20,34,.06), 0 12px 28px -10px rgba(14,20,34,.22); }
+.fact .bar { width: 5px; align-self: stretch; border-radius: 3px; flex: none; }
+.fact .k { font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.fact .v { font-size: 21px; font-weight: 650; letter-spacing: -.015em; margin-top: 5px; line-height: 1.3; }
+.slab { position: absolute; top: -40px; height: 1160px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <svg id="paper" class="abs" width="1920" height="1080" style="left:0;top:0">
+    <defs>
+      <pattern id="dots" width="36" height="36" patternUnits="userSpaceOnUse" x="18" y="18"><circle cx="1.5" cy="1.5" r="1.4" fill="rgba(14,20,34,.07)"/></pattern>
+      <radialGradient id="glowO" cx="92%" cy="-8%" r="55%"><stop offset="0" stop-color="#F97316" stop-opacity=".08"/><stop offset="1" stop-color="#F97316" stop-opacity="0"/></radialGradient>
+      <radialGradient id="glowB" cx="0%" cy="110%" r="55%"><stop offset="0" stop-color="#2563EB" stop-opacity=".06"/><stop offset="1" stop-color="#2563EB" stop-opacity="0"/></radialGradient>
+      <filter id="blur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="22"/></filter>
+      <mask id="holes" maskUnits="userSpaceOnUse" x="0" y="0" width="1920" height="1080"><rect width="1920" height="1080" fill="#fff"/><g id="holeCut"></g></mask>
+    </defs>
+    <g mask="url(#holes)">
+      <rect width="1920" height="1080" fill="#F4F3EF"/>
+      <rect width="1920" height="1080" fill="url(#dots)"/>
+      <rect width="1920" height="1080" fill="url(#glowO)"/>
+      <rect width="1920" height="1080" fill="url(#glowB)"/>
+      <g id="shadows"></g>
+    </g>
+    <g id="rings"></g>
+  </svg>
+  <div id="segLayer"></div>
+  <div class="abs" id="progress" style="left:0;bottom:0;height:5px;width:0;background:#F97316"></div>
+  <div class="slab" id="slabA" style="width:2600px;background:#F97316;display:none"></div>
+  <div class="slab" id="slabB" style="width:120px;background:#0E1422;display:none"></div>
+</div>
+
+<script>
+const W = 1920, H = 1080;
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const E = {
+  outExpo: t => t >= 1 ? 1 : 1 - Math.pow(2, -10 * t),
+  inExpo: t => t <= 0 ? 0 : Math.pow(2, 10 * t - 10),
+  outCubic: t => 1 - Math.pow(1 - t, 3),
+  inOutQuart: t => t < .5 ? 8 * t ** 4 : 1 - Math.pow(-2 * t + 2, 4) / 2,
+  inOutCubic: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+  outBack: t => { const c1 = 1.7, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
+};
+const P = (t, a, b, e = E.outExpo) => e(clamp((t - a) / (b - a)));
+const $ = id => document.getElementById(id);
+
+/* ---------------- source regions in the raw 1920x1080 recordings ----------------
+   Every footage shot uses ONE layout: a vertical panel on the left (camera feed,
+   dashboard map or SITREP page, all cropped to the same 0.654 aspect) and the
+   Gazebo 3D view on the right under the captions. */
+const SRC = {
+  GZW: [0, 330, 955, 537],       // Gazebo 3D view, 16:9 band
+  FEED: [1040, 172, 568, 868],   // dashboard camera feed card
+  PRIO: [1040, 170, 570, 872],   // dashboard Map view (priorities side of it)
+  SITREP: [1140, 112, 633, 968], // situation report page
+};
+const LEFT = [80, 80, 602, 920], RIGHT = [760, 470, 960, 540];
+const LEFT_TAG = { FEED: "LIVE AI FEED", PRIO: "SAHARA DASHBOARD · MAP", SITREP: "SITUATION REPORT" };
+const LAYOUT = { card: [] };
+Object.keys(LEFT_TAG).forEach(k => LAYOUT[k] = [[k, LEFT, LEFT_TAG[k]], ["GZW", RIGHT, "GAZEBO · 3D WORLD"]]);
+
+/* ---------------- the edit ----------------
+   src: recording; a..b: source seconds; dur: edit seconds (speed = (b-a)/dur).
+   beats: [source second, colour, label, caption, sound] — step captions, timed
+   to the stage changes visible in the recording's own dashboard. */
+const CUT = new URLSearchParams(location.search).get("cut") || "main";
+const C = { go: "#0284C7", ai: "#F97316", ok: "#DC2626", aid: "#16A34A", haz: "#EA580C", water: "#2563EB", info: "#0E1422" };
+const MAIN = [
+  { id: "intro", layout: "card", dur: 5.0 },
+  { layout: "FEED", src: "day", a: 20.0, b: 31.0, dur: 7.5, n: "01", title: "Autonomous take-off", sub: "One button starts the mission — the drone does the rest",
+    beats: [[20.0, C.go, "Take-off", "Lifts off on its own"], [24.0, C.go, "Climbing", "Climbs to its 8 m search height"], [29.0, C.ai, "Searching", "Starts searching the disaster zone"]] },
+  { layout: "FEED", src: "day", a: 31.0, b: 44.0, dur: 16.25, n: "02", title: "First survivor found", sub: "Detect → verify → confirm → drop aid, all on its own",
+    beats: [[31.0, C.go, "Searching", "Scanning the ground with its camera"],
+            [33.0, C.ai, "AI detection", "The AI spots a person", "pop"],
+            [34.0, C.ai, "Verifying", "Stops and hovers over them to double-check"],
+            [35.2, C.ok, "Confirmed", "Casualty V1 confirmed · RGB confidence 0.93", "confirm"],
+            [36.6, C.aid, "Aid drop", "Moves 2.5 m to the side to drop the aid kit"],
+            [40.0, C.aid, "Aid drop", "Aid kit dropped beside the casualty", "thud"],
+            [42.0, C.go, "Searching", "Resumes the search for more survivors"]] },
+  { layout: "FEED", src: "day", a: 56.0, b: 71.0, dur: 15.0, n: "03", title: "Second survivor", sub: "Found and geo-tagged in the next area",
+    beats: [[56.0, C.go, "Searching", "Searching the next most likely area"],
+            [60.0, C.ai, "AI detection", "Another person spotted — hovering to verify", "pop"],
+            [64.0, C.ok, "Confirmed", "Casualty V2 confirmed · RGB confidence 0.94", "confirm"],
+            [66.5, C.info, "Marked", "Position saved on the map (only one aid kit on board)"],
+            [70.0, C.go, "Searching", "Back to searching"]] },
+  { layout: "FEED", src: "day", a: 72.0, b: 96.0, dur: 9.6, n: "04", title: "Smart search", sub: "It flies where survivors are most likely — not in rows",
+    beats: [[72.0, C.go, "Planner", "Heads for the most likely unsearched area"], [84.0, C.go, "Planner", "Every camera look updates a live probability map"]] },
+  { layout: "FEED", src: "day", a: 157.0, b: 168.0, dur: 11.0, n: "05", title: "Hazard: flood water", sub: "Dangers are mapped too, so rescue teams avoid them",
+    beats: [[157.0, C.go, "Searching", "Scanning the ground"],
+            [161.8, C.water, "Hazard", "Flood water detected · thermal + RGB", "pop"],
+            [165.0, C.water, "Hazard map", "Added to the map as a zone to avoid"]] },
+  { id: "night", layout: "card", dur: 4.5 },
+  { layout: "FEED", src: "night", a: 61.0, b: 75.0, dur: 14.0, n: "06", title: "Finding people in the dark", sub: "At night SAHARA switches to its thermal AI model",
+    beats: [[61.0, C.go, "Searching", "Searching using the thermal camera"],
+            [65.0, C.ai, "AI detection", "Thermal AI spots a person — hovering to verify", "pop"],
+            [69.0, C.ok, "Confirmed", "Casualty V2 confirmed · thermal confidence 0.62", "confirm"],
+            [73.5, C.go, "Searching", "Back to searching"]] },
+  { layout: "FEED", src: "night", a: 120.0, b: 134.0, dur: 14.0, n: "07", title: "Fire hot spot · 77 °C", sub: "Heat shows up clearly in thermal",
+    beats: [[120.0, C.go, "Searching", "Scanning in thermal"],
+            [122.5, C.haz, "Hot spot", "Something very hot comes into view", "pop"],
+            [129.0, C.haz, "Hazard", "Fire / hot spot detected · 77 °C", "slam"],
+            [131.5, C.haz, "Hazard map", "Mapped with a safety buffer around it"]] },
+  { layout: "PRIO", src: "night", a: 164.0, b: 179.0, dur: 15.0, n: "08", title: "Rescue priorities", sub: "Who to reach first — and a safe way to get there",
+    beats: [[164.0, C.info, "Mission map", "2 casualties and 2 hazards on one live map"],
+            [167.5, C.ok, "Priority 1 · V2", "Fire 8 m away → safe route 39 m, about 0.7 min on foot", "pop"],
+            [171.5, "#D97706", "Priority 2 · V1", "Aid kit dropped → safe route 25 m, about 0.4 min on foot", "pop"],
+            [175.5, C.aid, "Search coverage", "90% probability of success reached", "pop"]] },
+  { layout: "FEED", src: "day", a: 176.0, b: 202.0, dur: 13.0, n: "09", title: "Returns and lands", sub: "Search target reached — it flies home on its own",
+    beats: [[176.0, C.go, "Returning", "Flying back to the launch point"], [180.0, C.go, "Landing", "Descending to land"], [200.0, C.aid, "Complete", "Landed · mission complete", "confirm"]] },
+  { layout: "SITREP", src: "day", a: 202.0, b: 217.4, dur: 15.4, n: "10", title: "One-click SITREP", sub: "A situation report built from the drone's own data",
+    beats: [[202.0, C.info, "Report", "Summary, map and search coverage"],
+            [207.5, C.ok, "Report", "Every casualty with GPS position, priority and action"],
+            [212.5, C.aid, "Offline", "Print or save as PDF — no internet needed"]] },
+  { id: "live", layout: "card", dur: 5.0 },
+];
+const END = [{ id: "outro", layout: "card", dur: 6.0 }];
+const SEGS = CUT === "end" ? END : MAIN;
+let acc = 0;
+SEGS.forEach(s => {
+  s.t0 = acc; acc += s.dur; s.t1 = acc;
+  if (s.src) {
+    s.speed = (s.b - s.a) / s.dur;
+    s.cues = (s.beats || []).map(([st, col, k, v, snd]) => ({ lt: Math.max(.5, (st - s.a) / s.speed), col, k, v, snd }));
+  }
+});
+const DURATION = acc;
+const segById = id => SEGS.find(s => s.id === id);
+const WIPES = CUT === "end" ? [0] : [SEGS[1].t0, segById("night").t0, segById("night").t1, segById("live").t0];
+
+/* ---------------- build DOM per segment ---------------- */
+const layer = $("segLayer");
+const speedLabel = s => s.speed > 1.25 ? `${+s.speed.toFixed(1)}× SPEED` : s.speed < .9 ? "SLOW MOTION" : "REAL TIME";
+SEGS.forEach((s, i) => {
+  const el = document.createElement("div");
+  el.className = "abs seg"; el.style.inset = "0"; el.id = "seg" + i;
+  let h = "";
+  const holes = LAYOUT[s.layout];
+  holes.forEach(([src, r, tag]) => { h += `<div class="cardtag" style="left:${r[0] + 16}px;top:${r[1] + 16}px"><span style="width:8px;height:8px;border-radius:50%;background:${src.startsWith("GZ") ? "#2563EB" : "#F97316"}"></span>${tag}</div>`; });
+  const badges = s.src ? `<span class="badge"><span class="d" style="background:#2563EB"></span>SIMULATION</span><span class="badge"><span class="d" style="background:${s.src === "night" ? "#7C3AED" : "#F59E0B"}"></span>${s.src === "night" ? "NIGHT · THERMAL" : "DAY · RGB"}</span><span class="badge" data-speed><span class="d" style="background:#0E1422"></span>${speedLabel(s)}</span>` : "";
+  if (s.src) {
+    const x = RIGHT[0], w = 1860 - x;
+    h += `<div class="abs" data-f style="left:${x}px;top:80px;display:flex;gap:10px">${badges}</div>
+      <div class="abs" style="left:${x}px;top:150px;width:${w}px">
+      <div class="num" data-r="0">${s.n}<i></i></div>
+      <div class="mask" style="margin-top:12px"><div class="rise title" data-r="1" style="font-size:60px">${s.title}</div></div>
+      <div class="sub" data-f style="font-size:24px;margin-top:10px">${s.sub}</div></div>`;
+    s.cues.forEach((c, j) => {
+      h += `<div class="abs fact" data-cue="${j}" style="left:${x}px;top:344px;width:${w - 60}px;height:100px;align-items:center;display:none">
+        <div class="bar" style="background:${c.col}"></div>
+        <div style="flex:1"><div class="k" style="color:${c.col};display:flex;justify-content:space-between"><span>${c.k}</span>
+          <span style="display:flex;gap:6px;align-items:center">${s.cues.map((_, q) => `<i style="width:${q === j ? 22 : 8}px;height:8px;border-radius:4px;background:${q <= j ? c.col : "#E5E3DD"}"></i>`).join("")}</span></div>
+        <div class="v" style="font-size:27px;margin-top:6px">${c.v}</div></div></div>`;
+    });
+  } else if (s.id === "intro" || s.id === "outro") {
+    h += `<div class="abs" style="inset:0;background:#F4F3EF"></div>
+      <svg class="abs" width="1920" height="1080" style="left:0;top:0"><rect width="1920" height="1080" fill="url(#dots)"/><rect width="1920" height="1080" fill="url(#glowO)"/><rect width="1920" height="1080" fill="url(#glowB)"/></svg>
+      <div class="abs" style="left:0;right:0;top:0;bottom:${s.id === "intro" ? 90 : 170}px;display:flex;align-items:center;justify-content:center;gap:50px">
+        <svg data-logo viewBox="0 0 32 32" style="width:170px;height:170px;overflow:visible"><path data-lf d="M3 5 16 27 29 5 16 12z" fill="#F97316"/><path data-l1 d="M3 5 16 27 29 5 16 12z" fill="none" stroke="#0E1422" stroke-width="1.6" stroke-linejoin="round"/><path data-l2 d="M16 12v15" fill="none" stroke="#0E1422" stroke-width="1.6"/></svg>
+        <div style="white-space:nowrap"><div class="mask"><div class="rise" data-r="1" style="font-size:150px;font-weight:600;letter-spacing:.2em;line-height:1;margin-right:-.2em">SAHARA</div></div>
+        <div data-line style="height:5px;width:0;background:#F97316;border-radius:4px;margin:22px 0 20px"></div>
+        <div style="display:flex;gap:22px;align-items:center;font-family:var(--mono);font-size:28px;font-weight:600;letter-spacing:.34em;color:#2A3345">
+          <span data-p="0">SEARCH</span><i data-p="1" style="width:10px;height:10px;border-radius:50%;background:#F97316"></i><span data-p="2">DETECT</span><i data-p="3" style="width:10px;height:10px;border-radius:50%;background:#F97316"></i><span data-p="4" style="color:#EA580C">RESCUE</span></div></div></div>
+      ${s.id === "intro"
+        ? `<div class="abs" data-f style="left:0;right:0;top:760px;text-align:center"><div style="font-size:34px;font-weight:700;letter-spacing:-.02em">Live mission demo</div>
+           <div class="sub" style="font-size:23px;margin-top:10px">Simulated disaster zone · Gazebo + ArduPilot SITL, running the same ArduCopter firmware as our drone</div></div>`
+        : `<div class="abs" data-f style="left:0;right:0;top:690px;display:flex;justify-content:center;gap:16px">
+             <span class="badge" style="height:48px;font-size:16px;padding:0 22px"><span class="d" style="background:#2563EB"></span>SIMULATION · GAZEBO + ARDUPILOT SITL</span>
+             <span class="badge" style="height:48px;font-size:16px;padding:0 22px"><span class="d" style="background:#16A34A"></span>REAL DRONE · S500 + PIXHAWK · FLIGHT-TESTED</span></div>
+           <div class="abs mono" data-f style="left:0;right:0;top:800px;text-align:center;font-size:18px;font-weight:600;letter-spacing:.24em;color:#98A2B3">SMART INDIA HACKATHON 2026</div>`}`;
+  } else if (s.id === "live") {
+    h += `<div class="abs" style="inset:0;background:#0E1422"></div>
+      <svg class="abs" width="1920" height="1080" style="left:0;top:0;opacity:.5"><defs><pattern id="lg" width="60" height="60" patternUnits="userSpaceOnUse"><path d="M60 0H0V60" fill="none" stroke="rgba(255,255,255,.06)"/></pattern></defs><rect width="1920" height="1080" fill="url(#lg)"/></svg>
+      <div class="abs" style="left:0;right:0;top:300px;text-align:center;color:#fff">
+        <div data-rec style="display:inline-flex;align-items:center;gap:14px;height:52px;padding:0 24px;border-radius:999px;border:2px solid rgba(255,255,255,.18);font-family:var(--mono);font-size:20px;font-weight:700;letter-spacing:.2em">
+          <span data-dot style="width:14px;height:14px;border-radius:50%;background:#EF4444"></span>LIVE TESTING</div>
+        <div class="mask" style="margin-top:40px"><div class="rise title" data-r="1" style="font-size:96px">From simulation</div></div>
+        <div class="mask"><div class="rise title" data-r="2" style="font-size:96px;color:#F97316">to the sky.</div></div>
+        <div class="sub" data-f style="color:#A5AEC0;font-size:26px;margin-top:26px">Real flights · S500 + Pixhawk 2.4.8</div></div>`;
+  } else if (s.id === "night") {
+    h += `<div class="abs" style="inset:0;background:#0B1020"></div>
+      <svg class="abs" width="1920" height="1080" style="left:0;top:0">${Array.from({ length: 90 }, (_, k) => { const x = (k * 733) % 1920, y = (k * 389) % 1080, r = (k % 3) * .5 + .8; return `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" opacity="${.15 + (k % 5) * .08}"/>`; }).join("")}</svg>
+      <div class="abs" style="left:0;right:0;top:330px;text-align:center;color:#fff">
+        <svg data-moon viewBox="0 0 24 24" style="width:96px;height:96px;fill:none;stroke:#FBBF24;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>
+        <div class="mask" style="margin-top:34px"><div class="rise title" data-r="1" style="font-size:96px">Night falls.</div></div>
+        <div class="mask"><div class="rise title" data-r="2" style="font-size:96px;color:#F97316">Thermal takes over.</div></div></div>`;
+  }
+  el.innerHTML = h;
+  layer.appendChild(el);
+  s.el = el;
+});
+
+/* ---------------- paint ---------------- */
+function setHoles(s, t) {
+  const holes = LAYOUT[s.layout];
+  const pop = P(t, s.t0, s.t0 + .45, E.outCubic);
+  $("holeCut").innerHTML = holes.map(([, r]) => `<rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" rx="20" fill="#000"/>`).join("");
+  $("shadows").innerHTML = holes.map(([, r]) => `<rect x="${r[0]}" y="${r[1] + 18}" width="${r[2]}" height="${r[3]}" rx="20" fill="rgba(14,20,34,.30)" filter="url(#blur)"/>`).join("");
+  $("rings").innerHTML = holes.map(([, r]) => `<rect x="${r[0] - .5}" y="${r[1] - .5}" width="${r[2] + 1}" height="${r[3] + 1}" rx="20" fill="none" stroke="rgba(14,20,34,.10)" stroke-width="1"/>`).join("");
+  $("paper").style.display = holes.length ? "block" : "none";
+}
+function rise(el, t, tIn, dur = .6) {
+  const p = P(t, tIn, tIn + dur, E.outExpo);
+  el.style.transform = `translateY(${(1 - p) * 115}%)`;
+}
+function renderSeg(s, t) {
+  const lt = t - s.t0, el = s.el;
+  el.querySelectorAll("[data-r]").forEach(r => {
+    const k = +r.dataset.r;
+    if (r.classList.contains("rise")) rise(r, lt, .08 + k * .1);
+    else { const p = P(lt, .05, .45); r.style.opacity = p; r.style.transform = `translateX(${(1 - p) * -16}px)`; }
+  });
+  el.querySelectorAll("[data-f]").forEach(f => { const p = P(lt, .3, .8, E.outCubic); f.style.opacity = p; f.style.transform = `translateY(${(1 - p) * 12}px)`; });
+  el.querySelectorAll("[data-speed]").forEach(b => { const p = P(lt, .45, .8, E.outBack); b.style.transform = `scale(${lerp(.7, 1, p)})`; });
+  // step captions: one at a time, the newest slides up over the previous one
+  if (s.cues) {
+    let cur = -1;
+    s.cues.forEach((c, q) => { if (lt >= c.lt) cur = q; });
+    el.querySelectorAll("[data-cue]").forEach(f => {
+      const q = +f.dataset.cue;
+      if (q !== cur) { f.style.display = "none"; return; }
+      const c = s.cues[q], p = P(lt, c.lt, c.lt + .45, E.outBack), pf = P(lt, c.lt, c.lt + .2);
+      f.style.display = "flex"; f.style.opacity = pf;
+      f.style.transform = `translateY(${(1 - p) * 26}px) scale(${lerp(.96, 1, p)})`;
+    });
+  }
+  if (s.id === "intro" || s.id === "outro") {
+    const L1 = el.querySelector("[data-l1]"), L2 = el.querySelector("[data-l2]"), LF = el.querySelector("[data-lf]");
+    const d1 = P(lt, .1, .9, E.inOutCubic), d2 = P(lt, .6, 1.0, E.outCubic);
+    L1.style.strokeDasharray = 80; L1.style.strokeDashoffset = 80 * (1 - d1);
+    L2.style.strokeDasharray = 15; L2.style.strokeDashoffset = 15 * (1 - d2);
+    const fp = P(lt, .85, 1.25, E.outBack); LF.style.opacity = clamp(fp); LF.style.transformOrigin = "16px 16px"; LF.style.transform = `scale(${lerp(.5, 1, fp)})`;
+    const w = el.querySelector("[data-r]"); rise(w, lt, .7, .7); w.style.letterSpacing = lerp(.42, .2, P(lt, .7, 1.7)) + "em";
+    el.querySelector("[data-line]").style.width = P(lt, 1.0, 1.7) * 100 + "%";
+    el.querySelectorAll("[data-p]").forEach(p => { const k = +p.dataset.p, q = P(lt, 1.3 + k * .12, 1.7 + k * .12, E.outBack); p.style.opacity = clamp(q * 2); p.style.transform = `translateY(${(1 - q) * 14}px)`; p.style.display = "inline-block"; });
+    el.querySelectorAll("[data-f]").forEach(f => { const p = P(lt, 1.9, 2.5, E.outCubic); f.style.opacity = p; f.style.transform = `translateY(${(1 - p) * 14}px)`; });
+    if (s.id === "outro") el.style.opacity = 1 - P(t, DURATION - 1.4, DURATION - .1, E.inOutCubic);
+  }
+  if (s.id === "live") {
+    const r = el.querySelector("[data-rec]"), p = P(lt, 0, .5, E.outBack);
+    r.style.opacity = clamp(p * 2); r.style.transform = `scale(${lerp(.7, 1, p)})`;
+    el.querySelector("[data-dot]").style.opacity = (Math.floor(lt * 2.2) % 2) ? .25 : 1;
+    el.querySelectorAll("[data-r]").forEach(q => rise(q, lt, .25 + (+q.dataset.r - 1) * .3, .7));
+    el.querySelectorAll("[data-f]").forEach(f => { const q = P(lt, 1.0, 1.6, E.outCubic); f.style.opacity = q; f.style.transform = `translateY(${(1 - q) * 12}px)`; });
+  }
+  if (s.id === "night") {
+    const m = el.querySelector("[data-moon]"); const p = P(lt, 0, .8, E.outBack);
+    m.style.transform = `translateY(${(1 - p) * 30}px) rotate(${(1 - p) * -40}deg)`; m.style.opacity = clamp(p * 2);
+    el.querySelectorAll("[data-r]").forEach(r => rise(r, lt, .25 + (+r.dataset.r - 1) * .35, .7));
+  }
+}
+function renderAt(t) {
+  let cur = SEGS.find(s => t >= s.t0 && t < s.t1) || SEGS[SEGS.length - 1];
+  SEGS.forEach(s => s.el.style.display = s === cur ? "block" : "none");
+  setHoles(cur, t);
+  renderSeg(cur, t);
+  // footage progress
+  const f0 = CUT === "end" ? 0 : SEGS[1].t0, f1 = CUT === "end" ? 1 : segById("live").t0;
+  $("progress").style.width = (cur.src ? clamp((t - f0) / (f1 - f0)) * 1920 : 0) + "px";
+  // orange slab wipes (cut happens under full cover)
+  const A = $("slabA"), B = $("slabB"); let on = false;
+  for (const tc of WIPES) {
+    if (t < tc - .3 || t > tc + .3) continue;
+    const p = E.inOutQuart(clamp((t - (tc - .3)) / .6));
+    const x = lerp(W + 420, -2600 - 420, p);
+    A.style.transform = `translateX(${x}px) skewX(-14deg)`; B.style.transform = `translateX(${x - 150}px) skewX(-14deg)`;
+    on = true;
+  }
+  A.style.display = B.style.display = on ? "block" : "none";
+}
+
+/* Sound cues for the score, from the same timeline. */
+function sfxEvents() {
+  const ev = [], add = (t, type, v = 1) => ev.push({ t: +t.toFixed(3), type, v });
+  if (CUT === "end") {
+    add(0.02, "impact", 1.1); add(.95, "pop", .8);
+    [1.3, 1.42, 1.54].forEach(t => add(t, "tick", .6));
+    return ev;
+  }
+  add(.1, "pop", .6); add(.9, "pop", .7); add(3.4, "riser", 1.3);
+  WIPES.forEach(t => add(t, "whoosh", 1));
+  SEGS.forEach(s => {
+    if (!s.src) return;
+    add(s.t0 + .1, "tick", .7);
+    s.cues.forEach(c => add(s.t0 + c.lt, c.snd || "tick", c.snd ? .9 : .5));
+  });
+  add(segById("night").t0 + .25, "impact", .9);
+  add(segById("live").t0 + .25, "impact", 1.1);
+  return ev.sort((a, b) => a.t - b.t);
+}
+
+window.EDIT = { cut: CUT, segs: SEGS.map(({ el, ...s }) => s), layouts: LAYOUT, src: SRC, duration: DURATION, wipes: WIPES };
+window.sfxEvents = sfxEvents;
+window.ready = (async () => {
+  await Promise.all([500, 600, 700, 800].map(w => document.fonts.load(`${w} 40px Inter`)));
+  await Promise.all([600, 700].map(w => document.fonts.load(`${w} 20px "JetBrains Mono"`)));
+  await document.fonts.ready;
+  window.renderAt = renderAt;
+  renderAt(parseFloat(new URLSearchParams(location.search).get("t") || "0"));
+  return true;
+})();
+</script>
+</body>
+</html>

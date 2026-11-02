@@ -1,0 +1,482 @@
+{
+  "mission_id": "HWC-FOREST",
+  "_generated": "worldgen/generate_forest.py - map intel only, no animal positions",
+  "target": {
+    "latitude": -35.3632621,
+    "longitude": 149.1652374,
+    "altitude": 10
+  },
+  "search": {
+    "width_m": 192,
+    "height_m": 192,
+    "altitude_m": 30,
+    "speed_ms": 6.0,
+    "planner": "bayes",
+    "on_confirm": "continue",
+    "target_pos": 0.85,
+    "max_search_s": 900,
+    "mission_type": "wildlife"
+  },
+  "wildlife": {
+    "auto_dispatch": true,
+    "dispatch_rule": "path",
+    "standoff_m": 25,
+    "intercept_speed_ms": 8.0,
+    "track_speed_ms": 6.0,
+    "max_track_s": 360,
+    "reacquire_s": 90,
+    "return_battery_pct": 30
+  },
+  "escalation": {
+    "critical_eta_s": 45,
+    "critical_dist_m": 40,
+    "warning_eta_s": 600
+  },
+  "_local_frame": "metres east/north of the launch point (forest station)",
+  "staging": {
+    "east_m": -8,
+    "north_m": -9,
+    "label": "Forest station / rapid response team"
+  },
+  "prior_zones": [],
+  "towers": [
+    {
+      "id": "T1",
+      "label": "East edge (grazing land)",
+      "kind": "tower",
+      "east_m": 55.0,
+      "north_m": 4.0,
+      "height_m": 6.0,
+      "look": [
+        55.0,
+        30.0
+      ],
+      "yaw_rad": 1.5708,
+      "pitch_rad": 0.2268,
+      "hfov_rad": 1.2,
+      "rgb": {
+        "topic": "/tower/t1/image",
+        "width": 1280,
+        "height": 720
+      },
+      "thermal": {
+        "topic": "/tower/t1/thermal",
+        "width": 640,
+        "height": 480
+      }
+    },
+    {
+      "id": "T2",
+      "label": "Corridor exit",
+      "kind": "tower",
+      "east_m": -44.0,
+      "north_m": 4.0,
+      "height_m": 6.0,
+      "look": [
+        -46.0,
+        30.0
+      ],
+      "yaw_rad": 1.6476,
+      "pitch_rad": 0.2262,
+      "hfov_rad": 1.2,
+      "rgb": {
+        "topic": "/tower/t2/image",
+        "width": 1280,
+        "height": 720
+      },
+      "thermal": {
+        "topic": "/tower/t2/thermal",
+        "width": 640,
+        "height": 480
+      }
+    },
+    {
+      "id": "T3",
+      "label": "West waterhole",
+      "kind": "tower",
+      "east_m": -66.0,
+      "north_m": 4.0,
+      "height_m": 6.0,
+      "look": [
+        -80.0,
+        22.0
+      ],
+      "yaw_rad": 2.2318,
+      "pitch_rad": 0.2573,
+      "hfov_rad": 1.2,
+      "rgb": {
+        "topic": "/tower/t3/image",
+        "width": 1280,
+        "height": 720
+      },
+      "thermal": {
+        "topic": "/tower/t3/thermal",
+        "width": 640,
+        "height": 480
+      }
+    },
+    {
+      "id": "C1",
+      "label": "Trail, deep forest",
+      "kind": "trail",
+      "east_m": -50.0,
+      "north_m": 72.0,
+      "height_m": 3.0,
+      "look": [
+        -62.0,
+        70.0
+      ],
+      "yaw_rad": -2.9764,
+      "pitch_rad": 0.2418,
+      "hfov_rad": 1.2,
+      "rgb": {
+        "topic": "/tower/c1/image",
+        "width": 960,
+        "height": 540
+      },
+      "thermal": {
+        "topic": "/tower/c1/thermal",
+        "width": 640,
+        "height": 480
+      }
+    },
+    {
+      "id": "C2",
+      "label": "Trail, mid forest",
+      "kind": "trail",
+      "east_m": -40.0,
+      "north_m": 50.0,
+      "height_m": 3.0,
+      "look": [
+        -51.5,
+        48.0
+      ],
+      "yaw_rad": -2.9694,
+      "pitch_rad": 0.2516,
+      "hfov_rad": 1.2,
+      "rgb": {
+        "topic": "/tower/c2/image",
+        "width": 960,
+        "height": 540
+      },
+      "thermal": {
+        "topic": "/tower/c2/thermal",
+        "width": 640,
+        "height": 480
+      }
+    },
+    {
+      "id": "T4",
+      "label": "Village edge (west)",
+      "kind": "trail",
+      "east_m": -10.0,
+      "north_m": -50.0,
+      "height_m": 4.0,
+      "look": [
+        -24.0,
+        -46.0
+      ],
+      "yaw_rad": 2.8633,
+      "pitch_rad": 0.2681,
+      "hfov_rad": 1.2,
+      "rgb": {
+        "topic": "/tower/t4/image",
+        "width": 960,
+        "height": 540
+      },
+      "thermal": {
+        "topic": "/tower/t4/thermal",
+        "width": 640,
+        "height": 480
+      }
+    },
+    {
+      "id": "L1",
+      "label": "East nullah, forest",
+      "kind": "trail",
+      "east_m": 60.0,
+      "north_m": 66.0,
+      "height_m": 3.0,
+      "look": [
+        72.0,
+        64.0
+      ],
+      "yaw_rad": -0.1651,
+      "pitch_rad": 0.2418,
+      "hfov_rad": 1.2,
+      "rgb": {
+        "topic": "/tower/l1/image",
+        "width": 960,
+        "height": 540
+      },
+      "thermal": {
+        "topic": "/tower/l1/thermal",
+        "width": 640,
+        "height": 480
+      }
+    },
+    {
+      "id": "T5",
+      "label": "Village edge (east)",
+      "kind": "trail",
+      "east_m": 58.0,
+      "north_m": -48.0,
+      "height_m": 4.0,
+      "look": [
+        42.0,
+        -45.0
+      ],
+      "yaw_rad": 2.9562,
+      "pitch_rad": 0.2409,
+      "hfov_rad": 1.2,
+      "rgb": {
+        "topic": "/tower/t5/image",
+        "width": 960,
+        "height": 540
+      },
+      "thermal": {
+        "topic": "/tower/t5/thermal",
+        "width": 640,
+        "height": 480
+      }
+    }
+  ],
+  "corridors": [
+    {
+      "id": "trail",
+      "name": "Elephant trail (north-west)",
+      "cameras": [
+        "C1",
+        "C2",
+        "T2",
+        "T4"
+      ],
+      "dispatch_at": "T2"
+    },
+    {
+      "id": "east",
+      "name": "East nullah",
+      "cameras": [
+        "L1",
+        "T1",
+        "T5"
+      ],
+      "dispatch_at": "T1"
+    }
+  ],
+  "village": [
+    [
+      -75,
+      -58
+    ],
+    [
+      45,
+      -58
+    ],
+    [
+      45,
+      -99
+    ],
+    [
+      -75,
+      -99
+    ]
+  ],
+  "fields": [
+    [
+      [
+        -92,
+        -50
+      ],
+      [
+        -50,
+        -50
+      ],
+      [
+        -50,
+        -15
+      ],
+      [
+        -92,
+        -15
+      ]
+    ],
+    [
+      [
+        -45,
+        -50
+      ],
+      [
+        -8,
+        -50
+      ],
+      [
+        -8,
+        -15
+      ],
+      [
+        -45,
+        -15
+      ]
+    ],
+    [
+      [
+        8,
+        -50
+      ],
+      [
+        46,
+        -50
+      ],
+      [
+        46,
+        -15
+      ],
+      [
+        8,
+        -15
+      ]
+    ],
+    [
+      [
+        52,
+        -50
+      ],
+      [
+        92,
+        -50
+      ],
+      [
+        92,
+        -15
+      ],
+      [
+        52,
+        -15
+      ]
+    ]
+  ],
+  "forest_edge_north_m": 32.0,
+  "corridor": [
+    [
+      -72,
+      100
+    ],
+    [
+      -66,
+      80
+    ],
+    [
+      -56,
+      58
+    ],
+    [
+      -48,
+      40
+    ],
+    [
+      -46,
+      30
+    ]
+  ],
+  "known_water": [
+    [
+      [
+        -71.0,
+        22.0
+      ],
+      [
+        -71.4,
+        23.9
+      ],
+      [
+        -72.7,
+        25.5
+      ],
+      [
+        -74.7,
+        26.9
+      ],
+      [
+        -77.2,
+        27.7
+      ],
+      [
+        -80.0,
+        28.0
+      ],
+      [
+        -82.8,
+        27.7
+      ],
+      [
+        -85.3,
+        26.9
+      ],
+      [
+        -87.3,
+        25.5
+      ],
+      [
+        -88.6,
+        23.9
+      ],
+      [
+        -89.0,
+        22.0
+      ],
+      [
+        -88.6,
+        20.1
+      ],
+      [
+        -87.3,
+        18.5
+      ],
+      [
+        -85.3,
+        17.1
+      ],
+      [
+        -82.8,
+        16.3
+      ],
+      [
+        -80.0,
+        16.0
+      ],
+      [
+        -77.2,
+        16.3
+      ],
+      [
+        -74.7,
+        17.1
+      ],
+      [
+        -72.7,
+        18.5
+      ],
+      [
+        -71.4,
+        20.1
+      ]
+    ]
+  ],
+  "known_hazards": [],
+  "known_obstacles": [],
+  "risk_map": {
+    "file": "risk_forest.npy",
+    "e0": -96.0,
+    "n0": -96.0,
+    "cell_m": 2.0,
+    "_note": "static layer, illustrative weights (sample data)"
+  },
+  "basemap": {
+    "url": "basemaps/forest.png",
+    "e0": -100.0,
+    "n0": -100.0,
+    "w": 200.0,
+    "h": 200.0
+  }
+}

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Camera Wall</title>
+  <!-- All live cameras on one screen (forest world): the drone's forward
+       camera and the three ground towers, as annotated by Sentinel. Plain
+       MJPEG <img> streams from the command center; works offline. -->
+  <style>
+    :root { --bg: #06080c; --card: #0f141c; --line: rgba(255,255,255,.08); --text: #e9edf3; --dim: #8d97a8;
+            --watch: #38bdf8; --warning: #f97316; --critical: #ef4444; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+    header { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    header h1 { font-size: 16px; letter-spacing: .2em; margin: 0; }
+    header a { color: var(--dim); text-decoration: none; margin-left: auto; }
+    .pill { font-size: 12px; font-weight: 700; letter-spacing: .08em; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); }
+    .pill.watch { color: var(--watch); border-color: var(--watch); }
+    .pill.warning { color: var(--warning); border-color: var(--warning); }
+    .pill.critical { color: #fff; background: var(--critical); border-color: var(--critical); }
+    main { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: minmax(0, 1fr); gap: 10px; padding: 10px; height: calc(100vh - 50px); }
+    figure { margin: 0; position: relative; background: #000; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-height: 0; }
+    figure.drone { grid-column: span 2; grid-row: span 2; }
+    figure img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 10px; font-size: 12px; font-weight: 600;
+                 background: linear-gradient(transparent, rgba(0,0,0,.8)); }
+    figure.alert { border-color: var(--critical); box-shadow: 0 0 0 2px var(--critical); }
+    @media (max-width: 800px) {
+      main { grid-template-columns: 1fr; grid-template-rows: none; height: auto; }
+      figure.drone { grid-row: auto; aspect-ratio: 16 / 9; }
+      figure { aspect-ratio: 16 / 9; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SAHARA · CAMERAS</h1>
+    <span class="pill" id="level">NO HERD</span>
+    <span id="stage" style="color:var(--dim)"></span>
+    <a href="/">Dashboard →</a>
+  </header>
+  <main>
+    <figure class="drone" data-src="UAV"><img src="/video_feed" alt="Drone camera"><figcaption>DRONE · forward camera, 45° down</figcaption></figure>
+
+  </main>
+  <script>
+    const LABEL = { none: "NO HERD", watch: "WATCH", warning: "WARNING", critical: "CRITICAL" };
+    // One tile per camera, added once the bridge's map lists them.
+    let built = false;
+    function build(w) {
+      if (built || !(w.towers || []).length) return;
+      built = true;
+      for (const t of w.towers) {
+        const f = document.createElement("figure");
+        f.dataset.src = t.id;
+        f.innerHTML = `<img src="/video_feed/tower/${t.id.toLowerCase()}" alt="${t.id}"><figcaption>${t.id} · ${t.label}</figcaption>`;
+        document.querySelector("main").appendChild(f);
+      }
+    }
+    async function poll() {
+      try {
+        const d = await (await fetch("/api/map/latest")).json();
+        const w = d.wildlife || {};
+        build(w);
+        const el = document.getElementById("level");
+        el.className = `pill ${w.level || ""}`;
+        el.textContent = LABEL[w.level] || "NO HERD";
+        const h = w.herd;
+        document.getElementById("stage").textContent = `Drone: ${d.stage || "—"}` +
+          (h ? ` · herd ${h.count} · ${Math.round(h.village_dist_m)} m from village` : "");
+        const now = Date.now() / 1000;
+        document.querySelectorAll("figure").forEach((f) => f.classList.toggle("alert",
+          (w.sightings || []).some((s) => s.source === f.dataset.src && s.alert && now - s.t < 12) ||
+          (f.dataset.src === "UAV" && w.uav_visual)));
+      } catch (e) { /* bridge not up yet */ }
+      setTimeout(poll, 1000);
+    }
+    poll();
+  </script>
+</body>
+</html>

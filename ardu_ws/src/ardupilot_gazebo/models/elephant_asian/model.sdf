@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!-- elephant_asian: 2.7 m tall, body along +X, feet at z=0. Visual only: no
+     collision, like the region scenery, so moving it costs no physics.
+     The GLB is Y-up; Gazebo loads it as-is, hence the +90 deg roll. -->
+<sdf version="1.9">
+  <model name="elephant_asian">
+    <static>true</static>
+    <link name="body">
+      <visual name="visual">
+        <pose>0.5279 0.0000 0.0000 1.5708 0 1.5708</pose>
+        <geometry><mesh><uri>model://elephant_asian/meshes/model.glb</uri><scale>0.875442 0.875442 0.875442</scale></mesh></geometry>
+        <!-- Skin temperature for the thermal cameras (ground is ~288 K). -->
+        <plugin filename="gz-sim-thermal-system" name="gz::sim::systems::Thermal"><temperature>302</temperature></plugin>
+      </visual>
+    </link>
+  </model>
+</sdf>

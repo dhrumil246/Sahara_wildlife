@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SAHARA Wildlife</title>
+  <!-- Wildlife console (forest world, PS000183). One status line, three
+       screens, two or three actions each. Everything else is in Settings.
+       Plain HTML/CSS/JS, no external resources (offline field laptop). -->
+  <link rel="stylesheet" href="live.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%2315803d'/%3E%3C/svg%3E">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="logo" aria-hidden="true"></span>SAHARA <small>Wildlife</small></div>
+    <div id="status" class="status none"><span class="dot"></span><b id="status-text">Starting…</b><span id="status-sub"></span></div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="live" role="tab">Live</button>
+      <button class="tab" data-tab="map" role="tab">Map</button>
+      <button class="tab" data-tab="alerts" role="tab">Alerts <span id="alerts-count" class="count"></span></button>
+    </nav>
+    <button class="icon" id="open-settings" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+    </button>
+  </header>
+
+  <!-- ===================== LIVE ===================== -->
+  <main class="screen active" data-screen="live">
+    <section class="video-col">
+      <div class="player">
+        <img id="player" alt="Live camera">
+        <span id="player-label" class="player-label">Drone</span>
+      </div>
+      <div class="thumbs" id="thumbs">
+        <button class="thumb active" data-cam="drone"><img alt=""><span>Drone</span></button>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="card">
+        <h2>Situation</h2>
+        <p class="headline" id="herd-line">No elephants seen.</p>
+        <dl class="facts">
+          <div><dt>Heading</dt><dd id="f-heading">—</dd></div>
+          <div><dt>To village</dt><dd id="f-dist">—</dd></div>
+          <div><dt>Arrives in</dt><dd id="f-eta">—</dd></div>
+          <div><dt>Seen by</dt><dd id="f-src">—</dd></div>
+        </dl>
+        <div id="paths" class="paths"></div>
+      </div>
+      <div class="card">
+        <h2>Drone</h2>
+        <p class="headline" id="drone-line">On the ground.</p>
+        <p class="muted" id="drone-sub"></p>
+        <ul class="queue" id="queue"></ul>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="btn-drone">Send drone</button>
+        <button class="btn warn" id="btn-warn">Warn village</button>
+        <button class="link danger" id="btn-land">Emergency: land now</button>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ===================== MAP ===================== -->
+  <main class="screen" data-screen="map">
+    <section class="map-col">
+      <canvas id="map"></canvas>
+      <div class="legend">
+        <span><i class="lg herd"></i>Herd</span><span><i class="lg path"></i>Expected path</span>
+        <span><i class="lg village"></i>Village</span><span><i class="lg tower"></i>Camera view</span>
+        <span><i class="lg report"></i>Report</span><span><i class="lg risk"></i>Risk</span>
+      </div>
+      <p class="hint" id="map-hint" hidden>Tap the map where the animal was seen.</p>
+    </section>
+    <aside class="side">
+      <div class="card grow">
+        <h2>Reports and sightings</h2>
+        <ul class="list" id="sightings"><li class="muted">Nothing yet.</li></ul>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="btn-report">Add a report</button>
+      </div>
+      <form class="card report-form" id="report-form" hidden>
+        <h2>New report</h2>
+        <label>Animal
+          <select id="r-species"><option value="elephant">Elephant</option><option value="leopard">Leopard</option>
+            <option value="bear">Sloth bear</option><option value="wild boar">Wild boar</option><option value="other">Other</option></select></label>
+        <label>How many <input id="r-count" type="number" min="1" max="50" value="1"></label>
+        <label>Note <input id="r-note" type="text" maxlength="120" placeholder="optional"></label>
+        <p class="muted" id="r-where">Tap the map to place it.</p>
+        <div class="row"><button class="btn primary" id="r-send" type="submit" disabled>Send report</button>
+          <button class="link" id="r-cancel" type="button">Cancel</button></div>
+      </form>
+    </aside>
+  </main>
+
+  <!-- ===================== ALERTS ===================== -->
+  <main class="screen" data-screen="alerts">
+    <section class="card grow">
+      <h2>Messages sent <span class="muted" id="outbox-mode"></span></h2>
+      <ul class="messages" id="messages"><li class="empty">No messages yet. The first elephant sighting sends one to officers and the village.</li></ul>
+    </section>
+    <aside class="side">
+      <div class="card grow">
+        <h2>What happened</h2>
+        <ol class="log" id="log"></ol>
+      </div>
+      <div class="actions">
+        <button class="btn warn" id="btn-warn-2">Warn village</button>
+      </div>
+    </aside>
+  </main>
+
+  <!-- ===================== SETTINGS ===================== -->
+  <div class="drawer" id="settings" hidden>
+    <div class="drawer-panel">
+      <div class="drawer-head"><h2>Settings</h2><button class="icon" id="close-settings" aria-label="Close">✕</button></div>
+      <div class="setting"><div><b>Simulation</b><p class="muted" id="sim-state">—</p></div>
+        <button class="btn" id="s-sim">Start</button></div>
+      <div class="setting stack"><div><b>Camera mode</b><p class="muted">Day uses the colour cameras, night the thermal ones.</p></div>
+        <div class="seg"><button data-mode="day">Day</button><button data-mode="night">Night</button></div></div>
+      <div class="setting"><div><b>Send the drone automatically</b><p class="muted">On an elephant alert or a leopard/bear report.</p></div>
+        <label class="switch"><input type="checkbox" id="s-auto"><span></span></label></div>
+      <div class="setting stack"><div><b>Demo animals</b><p class="muted">They wait in the forest until started. The herd walks the trail to the village; the tusker turns back halfway; the leopard comes down the east nullah.</p></div>
+        <div class="row"><button class="btn" data-scenario="start herd">Start herd</button>
+          <button class="btn" data-scenario="start tusker">Start tusker (turns back)</button>
+          <button class="btn" data-scenario="start leopard">Start leopard</button>
+          <button class="link" data-scenario="reset">Reset</button></div></div>
+      <div class="setting"><div><b>Alerts to phones</b><p class="muted" id="tg-state">—</p></div></div>
+      <div class="setting links"><b>Other screens</b>
+        <a href="/cams" target="_blank">All cameras</a><a href="/community" target="_blank">Villagers' page</a>
+        <a href="/classic" target="_blank">Classic dashboard</a><a href="/report" target="_blank">Report (print)</a></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="map.js"></script>
+  <script src="live.js"></script>
+</body>
+</html>

@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SAHARA Wildlife Overlay</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=block" rel="stylesheet">
+<style>
+/* Foreground layer of the demo edit. Everything outside the footage "holes" is
+   painted here; the holes stay transparent so the video underneath shows through.
+   Deterministic: renderAt(t) paints edit time t. */
+:root {
+  --paper: #F4F3EF; --ink: #0E1422; --ink2: #2A3345; --dim: #667085; --faint: #98A2B3;
+  --orange: #F97316; --orange-d: #EA580C; --green: #16A34A; --red: #DC2626; --blue: #2563EB;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: transparent; }
+#stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; font-family: Inter, system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+.abs { position: absolute; }
+.mask { overflow: hidden; padding: 0 .06em .1em; margin: 0 -.06em; }
+.rise { display: block; }
+.num { font-family: var(--mono); font-size: 20px; font-weight: 700; letter-spacing: .16em; color: var(--orange-d); display: flex; align-items: center; gap: 12px; }
+.num i { width: 34px; height: 2px; background: var(--orange); display: inline-block; }
+.title { font-weight: 800; letter-spacing: -.045em; line-height: 1.02; }
+.sub { color: var(--dim); font-weight: 500; letter-spacing: -.01em; line-height: 1.35; }
+.badge { display: inline-flex; align-items: center; gap: 9px; height: 38px; padding: 0 16px; border-radius: 999px; background: #fff; border: 1px solid rgba(14,20,34,.08); box-shadow: 0 6px 16px -8px rgba(14,20,34,.25); font-family: var(--mono); font-size: 14px; font-weight: 700; letter-spacing: .08em; white-space: nowrap; }
+.badge .d { width: 9px; height: 9px; border-radius: 50%; }
+.cardtag { position: absolute; display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: 9px; background: rgba(255,255,255,.93); font-family: var(--mono); font-size: 12.5px; font-weight: 700; letter-spacing: .1em; color: var(--ink); box-shadow: 0 4px 14px -6px rgba(0,0,0,.45); }
+.fact { display: flex; gap: 16px; align-items: flex-start; padding: 18px 22px; border-radius: 16px; background: #fff; border: 1px solid rgba(14,20,34,.07); box-shadow: 0 1px 2px rgba(14,20,34,.06), 0 12px 28px -10px rgba(14,20,34,.22); }
+.fact .bar { width: 5px; align-self: stretch; border-radius: 3px; flex: none; }
+.fact .k { font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.fact .v { font-size: 21px; font-weight: 650; letter-spacing: -.015em; margin-top: 5px; line-height: 1.3; }
+.slab { position: absolute; top: -40px; height: 1160px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <svg id="paper" class="abs" width="1920" height="1080" style="left:0;top:0">
+    <defs>
+      <pattern id="dots" width="36" height="36" patternUnits="userSpaceOnUse" x="18" y="18"><circle cx="1.5" cy="1.5" r="1.4" fill="rgba(14,20,34,.07)"/></pattern>
+      <radialGradient id="glowO" cx="92%" cy="-8%" r="55%"><stop offset="0" stop-color="#F97316" stop-opacity=".08"/><stop offset="1" stop-color="#F97316" stop-opacity="0"/></radialGradient>
+      <radialGradient id="glowB" cx="0%" cy="110%" r="55%"><stop offset="0" stop-color="#2563EB" stop-opacity=".06"/><stop offset="1" stop-color="#2563EB" stop-opacity="0"/></radialGradient>
+      <filter id="blur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="22"/></filter>
+      <mask id="holes" maskUnits="userSpaceOnUse" x="0" y="0" width="1920" height="1080"><rect width="1920" height="1080" fill="#fff"/><g id="holeCut"></g></mask>
+    </defs>
+    <g mask="url(#holes)">
+      <rect width="1920" height="1080" fill="#F4F3EF"/>
+      <rect width="1920" height="1080" fill="url(#dots)"/>
+      <rect width="1920" height="1080" fill="url(#glowO)"/>
+      <rect width="1920" height="1080" fill="url(#glowB)"/>
+      <g id="shadows"></g>
+    </g>
+    <g id="rings"></g>
+  </svg>
+  <div id="segLayer"></div>
+  <div class="abs" id="progress" style="left:0;bottom:0;height:5px;width:0;background:#F97316"></div>
+  <div class="slab" id="slabA" style="width:2600px;background:#F97316;display:none"></div>
+  <div class="slab" id="slabB" style="width:120px;background:#0E1422;display:none"></div>
+</div>
+
+<script>
+const W = 1920, H = 1080;
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const E = {
+  outExpo: t => t >= 1 ? 1 : 1 - Math.pow(2, -10 * t),
+  inExpo: t => t <= 0 ? 0 : Math.pow(2, 10 * t - 10),
+  outCubic: t => 1 - Math.pow(1 - t, 3),
+  inOutQuart: t => t < .5 ? 8 * t ** 4 : 1 - Math.pow(-2 * t + 2, 4) / 2,
+  inOutCubic: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
+  outBack: t => { const c1 = 1.7, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
+};
+const P = (t, a, b, e = E.outExpo) => e(clamp((t - a) / (b - a)));
+const $ = id => document.getElementById(id);
+
+/* ---------------- sources ----------------
+   wildlife_sources.json (written by wildlife_edit.py prepare): each
+   recording's file, its "offset" (recording second at which the scenario
+   started: the moment "start herd" was sent) and crop regions; plus the
+   take's timeline (scenario seconds of each beat, from wildlife_scenario.py).
+   Caption beats name a timeline key, so they land on the right frame of any
+   take once the offset is set. Recording layout (as the SAR demo): Gazebo on
+   the left half of a 1920x1080 screen, the dashboard on the right. */
+let CFG = { sources: {}, timeline: {}, src: {} };
+const SRC = {
+  GZW: [0, 330, 955, 537],       // Gazebo 3D view
+  FEED: [1040, 172, 568, 868],   // dashboard: drone camera feed
+  TOWERS: [1620, 172, 290, 400], // dashboard: Sentinel tower tiles
+  MAP: [1040, 170, 570, 872],    // dashboard: Map view (map + sightings + phone)
+  PHONE: [0, 0, 1080, 1920],     // phone screen recording (portrait)
+  REAL: [0, 0, 1920, 1080],      // real-footage inset, full frame
+};
+const LEFT = [80, 80, 602, 920], RIGHT = [760, 470, 960, 540];
+const LEFT_TAG = { FEED: "DRONE CAMERA · FORWARD 45°", TOWERS: "SENTINEL TOWERS", MAP: "COMMAND CENTRE · MAP", PHONE: "VILLAGER'S PHONE" };
+const LAYOUT = { card: [], REAL: [["REAL", [160, 150, 1600, 900], "REAL FOOTAGE · SAME DETECTOR"]], CAMPUS: [["REAL", [160, 150, 1600, 900], "REAL S500 · NIGHT FLIGHT"]] };
+Object.keys(LEFT_TAG).forEach(k => LAYOUT[k] = [[k, LEFT, LEFT_TAG[k]], ["GZW", RIGHT, "GAZEBO · FOREST EDGE"]]);
+
+/* ---------------- the edit (target ~4:30) ----------------
+   a/b and beat times are scenario seconds (or timeline keys) on the
+   source named by src; speed = (b - a) / dur. */
+const CUT = new URLSearchParams(location.search).get("cut") || "main";
+const C = { go: "#0284C7", ai: "#F97316", ok: "#DC2626", aid: "#16A34A", warn: "#EA580C", info: "#0E1422", calm: "#16A34A" };
+const MAIN = [
+  { id: "intro", layout: "card", dur: 5.0 },
+  { layout: "TOWERS", src: "night", a: "tower_alert-8", b: "tower_alert+6", dur: 10.0, n: "01", title: "23:42 · a herd leaves the forest", sub: "Tower T2's thermal camera sees it first",
+    beats: [["tower_alert-6", C.go, "Watching", "Three towers watch the forest edge, day and night"],
+            ["tower_alert", C.ok, "Elephants", "T2: elephants at the corridor exit · alert raised", "confirm"]] },
+  { id: "problem", layout: "card", dur: 14.0 },
+  { layout: "TOWERS", src: "day", a: 20, b: 50, dur: 12.0, n: "02", title: "It knows a cow from an elephant", sub: "Every animal is measured in metres, not just named",
+    beats: [[22, C.calm, "Decoy", "Cattle at T1 · 1.4 m tall · no alert", "pop"], [40, C.calm, "Decoy", "Dogs and cattle all day — no false alarms"]] },
+  { layout: "REAL", src: "real", a: 0, b: 10, dur: 10.0, n: "03", title: "Same detector, real footage", sub: "Not only rendered elephants",
+    beats: [[1, C.ai, "Real footage", "Elephants detected on a real clip, unchanged model", "pop"]] },
+  { layout: "FEED", src: "night", a: "tower_alert", b: "ARMING+20", dur: 10.0, n: "04", title: "No one presses a button", sub: "The alert launches the drone by itself",
+    beats: [["tower_alert+1", C.ok, "Auto-dispatch", "Elephant alert → drone launching", "slam"], ["ARMING+6", C.go, "Take-off", "Climbs above the canopy, heads for the herd"]] },
+  { layout: "MAP", src: "night", a: "ARMING+20", b: "drone_visual+4", dur: 12.0, n: "05", title: "Flies to where the herd WILL be", sub: "Intercepts the predicted path — not the last sighting",
+    beats: [["ARMING+22", C.go, "Intercept", "Aims ahead of the herd along its heading"], ["drone_visual", C.ok, "Visual", "Drone camera has the herd: 3 elephants incl. a calf", "confirm"]] },
+  { layout: "FEED", src: "night", a: "drone_visual", b: "drone_visual+70", dur: 20.0, n: "06", title: "Tracking from 25 m behind", sub: "Observe only · never descends · follows past the towers' view",
+    beats: [["drone_visual+2", C.go, "Tracking", "Keeps the herd in its forward thermal camera"],
+            ["level_warning", C.warn, "Warning", "Herd outside the forest, heading for the fields", "pop"],
+            ["drone_visual+40", C.info, "Prediction", "Village ETA counts down from the herd's speed and heading"]] },
+  { layout: "PHONE", src: "phone", a: 0, b: 25, dur: 14.0, n: "07", title: "Villagers warned in time", sub: "A real message on a real phone — English + Hindi",
+    beats: [[1, C.warn, "Warning", "Herd outside the forest · ETA in minutes", "pop"], [9, C.ok, "Danger", "Elephants near the village · stay indoors", "slam"]] },
+  { layout: "MAP", src: "night", a: "level_critical-4", b: "level_critical+30", dur: 14.0, n: "08", title: "Everyone sees one picture", sub: "Towers, drone and villagers' reports on one risk map",
+    beats: [["level_critical", C.ok, "Critical", "Herd 40 m from the village", "slam"], ["villager_report", "#7C3AED", "Villager", "A villager reports the herd from their phone", "pop"]] },
+  { id: "campus", layout: "CAMPUS", src: "campus", a: 0, b: 20, dur: 12.0, n: "09", title: "The same airframe flies tonight", sub: "S500 + Pixhawk · manual night flight on campus (mission simulated)",
+    beats: [[1, C.info, "Real hardware", "Same frame, same ArduCopter firmware as the sim"]] },
+  { id: "exists", layout: "card", dur: 16.0 },
+  { id: "honest", layout: "card", dur: 9.0 },
+];
+const END = [{ id: "outro", layout: "card", dur: 6.0 }];
+const SEGS = CUT === "end" ? END : MAIN;
+
+function tl(v, src) {
+  /* "key", "key+5", "key-8" -> recording seconds on src; numbers are scenario seconds */
+  const off = (CFG.sources[src] || {}).offset || 0;
+  if (typeof v === "number") return off + v;
+  const m = /^([A-Za-z_]+)([+-][\d.]+)?$/.exec(v);
+  const base = CFG.timeline[m[1]];
+  if (base == null) throw new Error(`timeline has no "${m[1]}" (run wildlife_edit.py prepare)`);
+  return off + base + (m[2] ? parseFloat(m[2]) : 0);
+}
+function layoutSegs() {
+  Object.assign(SRC, CFG.src || {});
+  let acc = 0;
+  SEGS.forEach(s => {
+    s.t0 = acc; acc += s.dur; s.t1 = acc;
+    if (s.src) {
+      s.a = tl(s.a, s.src); s.b = tl(s.b, s.src);
+      s.speed = (s.b - s.a) / s.dur;
+      s.cues = (s.beats || []).map(([st, col, k, v, snd]) => ({ lt: Math.max(.5, (tl(st, s.src) - s.a) / s.speed), col, k, v, snd }));
+    }
+  });
+  return acc;
+}
+let DURATION = 0;
+const segById = id => SEGS.find(s => s.id === id);
+let WIPES = [];
+/* ---------------- build DOM per segment ---------------- */
+function buildDom() {
+const layer = $("segLayer");
+const speedLabel = s => s.speed > 1.25 ? `${+s.speed.toFixed(1)}× SPEED` : s.speed < .9 ? "SLOW MOTION" : "REAL TIME";
+SEGS.forEach((s, i) => {
+  const el = document.createElement("div");
+  el.className = "abs seg"; el.style.inset = "0"; el.id = "seg" + i;
+  let h = "";
+  const holes = LAYOUT[s.layout];
+  holes.forEach(([src, r, tag]) => { h += `<div class="cardtag" style="left:${r[0] + 16}px;top:${r[1] + 16}px"><span style="width:8px;height:8px;border-radius:50%;background:${src.startsWith("GZ") ? "#2563EB" : "#F97316"}"></span>${tag}</div>`; });
+  const REALSRC = { real: "REAL FOOTAGE", phone: "REAL PHONE · TELEGRAM", campus: "REAL HARDWARE" };
+  const badges = !s.src ? "" : REALSRC[s.src]
+    ? `<span class="badge"><span class="d" style="background:#16A34A"></span>${REALSRC[s.src]}</span><span class="badge" data-speed><span class="d" style="background:#0E1422"></span>${speedLabel(s)}</span>`
+    : `<span class="badge"><span class="d" style="background:#2563EB"></span>SIMULATION</span><span class="badge"><span class="d" style="background:${s.src === "night" ? "#7C3AED" : "#F59E0B"}"></span>${s.src === "night" ? "NIGHT · THERMAL" : "DAY · RGB"}</span><span class="badge" data-speed><span class="d" style="background:#0E1422"></span>${speedLabel(s)}</span>`;
+  if (s.src && (s.layout === "REAL" || s.layout === "CAMPUS")) {
+    h += `<div class="abs" data-f style="left:160px;top:80px;display:flex;gap:10px">${badges}</div>
+      <div class="abs" style="left:160px;top:1060px;transform:translateY(-100%);width:1600px">
+      <div class="mask"><div class="rise title" data-r="1" style="font-size:44px">${s.title}</div></div>
+      <div class="sub" data-f style="font-size:21px;margin-top:6px">${s.sub}</div></div>`;
+    s.cues = [];
+  } else if (s.src) {
+    const x = RIGHT[0], w = 1860 - x;
+    h += `<div class="abs" data-f style="left:${x}px;top:80px;display:flex;gap:10px">${badges}</div>
+      <div class="abs" style="left:${x}px;top:150px;width:${w}px">
+      <div class="num" data-r="0">${s.n}<i></i></div>
+      <div class="mask" style="margin-top:12px"><div class="rise title" data-r="1" style="font-size:60px">${s.title}</div></div>
+      <div class="sub" data-f style="font-size:24px;margin-top:10px">${s.sub}</div></div>`;
+    s.cues.forEach((c, j) => {
+      h += `<div class="abs fact" data-cue="${j}" style="left:${x}px;top:344px;width:${w - 60}px;height:100px;align-items:center;display:none">
+        <div class="bar" style="background:${c.col}"></div>
+        <div style="flex:1"><div class="k" style="color:${c.col};display:flex;justify-content:space-between"><span>${c.k}</span>
+          <span style="display:flex;gap:6px;align-items:center">${s.cues.map((_, q) => `<i style="width:${q === j ? 22 : 8}px;height:8px;border-radius:4px;background:${q <= j ? c.col : "#E5E3DD"}"></i>`).join("")}</span></div>
+        <div class="v" style="font-size:27px;margin-top:6px">${c.v}</div></div></div>`;
+    });
+  } else if (s.id === "intro" || s.id === "outro") {
+    h += `<div class="abs" style="inset:0;background:#F4F3EF"></div>
+      <svg class="abs" width="1920" height="1080" style="left:0;top:0"><rect width="1920" height="1080" fill="url(#dots)"/><rect width="1920" height="1080" fill="url(#glowO)"/><rect width="1920" height="1080" fill="url(#glowB)"/></svg>
+      <div class="abs" style="left:0;right:0;top:0;bottom:${s.id === "intro" ? 90 : 170}px;display:flex;align-items:center;justify-content:center;gap:50px">
+        <svg data-logo viewBox="0 0 32 32" style="width:170px;height:170px;overflow:visible"><path data-lf d="M3 5 16 27 29 5 16 12z" fill="#F97316"/><path data-l1 d="M3 5 16 27 29 5 16 12z" fill="none" stroke="#0E1422" stroke-width="1.6" stroke-linejoin="round"/><path data-l2 d="M16 12v15" fill="none" stroke="#0E1422" stroke-width="1.6"/></svg>
+        <div style="white-space:nowrap"><div class="mask"><div class="rise" data-r="1" style="font-size:150px;font-weight:600;letter-spacing:.2em;line-height:1;margin-right:-.2em">SAHARA</div></div>
+        <div data-line style="height:5px;width:0;background:#F97316;border-radius:4px;margin:22px 0 20px"></div>
+        <div style="display:flex;gap:22px;align-items:center;font-family:var(--mono);font-size:28px;font-weight:600;letter-spacing:.34em;color:#2A3345">
+          <span data-p="0">DETECT</span><i data-p="1" style="width:10px;height:10px;border-radius:50%;background:#F97316"></i><span data-p="2">PREDICT</span><i data-p="3" style="width:10px;height:10px;border-radius:50%;background:#F97316"></i><span data-p="4" style="color:#EA580C">PROTECT</span></div></div></div>
+      ${s.id === "intro"
+        ? `<div class="abs" data-f style="left:0;right:0;top:760px;text-align:center"><div style="font-size:34px;font-weight:700;letter-spacing:-.02em">AI for human-elephant conflict</div>
+           <div class="sub" style="font-size:23px;margin-top:10px">Camera towers spot the herd · a drone follows it · villagers are warned in time</div></div>`
+        : `<div class="abs" data-f style="left:0;right:0;top:690px;display:flex;justify-content:center;gap:16px">
+             <span class="badge" style="height:48px;font-size:16px;padding:0 22px"><span class="d" style="background:#2563EB"></span>SIMULATION · GAZEBO + ARDUPILOT SITL</span>
+             <span class="badge" style="height:48px;font-size:16px;padding:0 22px"><span class="d" style="background:#16A34A"></span>REAL DRONE · S500 + PIXHAWK</span></div>
+           <div class="abs mono" data-f style="left:0;right:0;top:800px;text-align:center;font-size:18px;font-weight:600;letter-spacing:.24em;color:#98A2B3">PS000183 · FORESTS &amp; ENVIRONMENT</div>
+           <div class="abs" data-f style="left:0;right:0;top:860px;text-align:center;font-size:15px;color:#98A2B3">Elephant and cattle models: Sketchfab authors, CC BY 4.0 (listed in models/ANIMALS_ATTRIBUTION.md)</div>`}`;
+  } else if (s.id === "problem") {
+    const fact = (k, v, col, src) => `<div class="fact" data-g><div class="bar" style="background:${col}"></div><div><div class="k" style="color:${col}">${k}</div><div class="v" style="font-size:30px">${v}</div><div class="sub" style="font-size:15px;margin-top:6px">${src}</div></div></div>`;
+    h += `<div class="abs" style="inset:0;background:#F4F3EF"></div>
+      <div class="abs" style="left:160px;top:150px;width:1600px">
+        <div class="num" data-r="0">THE PROBLEM<i></i></div>
+        <div class="mask" style="margin-top:12px"><div class="rise title" data-r="1" style="font-size:76px">Fixed cameras see a herd. Then they lose it.</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-top:56px">
+          ${fact("People killed by elephants · India", "≈ 2,860 in five years (2019–24)", "#DC2626", "Parliament reply, reported by PTI / The Week, July 2025")}
+          ${fact("Elephants killed · unnatural causes", "528 in five years · 392 electrocuted", "#EA580C", "Lok Sabha reply, reported by PTI / The Week, July 2024")}
+          ${fact("AI camera towers already work", "Coimbatore & Gudalur (TN): thermal towers, 24×7 control room", "#2563EB", "Gudalur: 46 cameras, ₹6 crore (Dec 2025)")}
+          ${fact("Their limit", "A tower sees ~150 m. Once the herd walks on, nobody can say where it will be next.", "#0E1422", "That gap is what SAHARA fills")}
+        </div></div>`;
+  } else if (s.id === "exists") {
+    const chip = (t, c) => `<span class="badge" data-g style="height:46px;font-size:15px;color:#0E1422"><span class="d" style="background:${c}"></span>${t}</span>`;
+    h += `<div class="abs" style="inset:0;background:#0E1422"></div>
+      <div class="abs" style="left:160px;top:140px;width:1600px;color:#fff">
+        <div class="num" data-r="0">BUILT ON WHAT EXISTS<i></i></div>
+        <div class="mask" style="margin-top:12px"><div class="rise title" data-r="1" style="font-size:70px">One picture from every camera already in the forest</div></div>
+        <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:44px">
+          ${chip("TRAILGUARD-STYLE TELEGRAM / E-MAIL ALERTS", "#F97316")}${chip("CENSUS CAMERA-TRAP ARCHIVES (SD CARDS)", "#F59E0B")}
+          ${chip("AI THERMAL TOWERS", "#2563EB")}${chip("VILLAGERS' REPORTS", "#7C3AED")}${chip("OUR DRONE", "#16A34A")}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:26px;margin-top:60px">
+          <div data-g><div class="k mono" style="color:#F97316;font-size:14px;letter-spacing:.14em;font-weight:700">ADD A TOWER</div><div style="font-size:40px;font-weight:800;margin-top:8px">≈ ₹12–15k</div><div style="color:#A5AEC0;font-size:18px;margin-top:6px">Raspberry Pi 5 + thermal module, per gap in coverage</div></div>
+          <div data-g><div class="k mono" style="color:#F97316;font-size:14px;letter-spacing:.14em;font-weight:700">THE DEMO</div><div style="font-size:40px;font-weight:800;margin-top:8px">₹0 new hardware</div><div style="color:#A5AEC0;font-size:18px;margin-top:6px">Open models, a laptop, our existing S500</div></div>
+          <div data-g><div class="k mono" style="color:#F97316;font-size:14px;letter-spacing:.14em;font-weight:700">OFFLINE</div><div style="font-size:40px;font-weight:800;margin-top:8px">No cloud</div><div style="color:#A5AEC0;font-size:18px;margin-top:6px">Runs on a field laptop; alerts when there is signal</div></div>
+        </div></div>`;
+  } else if (s.id === "honest") {
+    const li = (t) => `<li data-g style="margin:14px 0">${t}</li>`;
+    h += `<div class="abs" style="inset:0;background:#F4F3EF"></div>
+      <div class="abs" style="left:160px;top:170px;width:1600px">
+        <div class="num" data-r="0">WHAT THIS DEMO IS — AND ISN'T<i></i></div>
+        <div class="mask" style="margin-top:12px"><div class="rise title" data-r="1" style="font-size:64px">Honest limits</div></div>
+        <ul style="font-size:27px;line-height:1.4;margin-top:34px;padding-left:30px;color:#2A3345">
+          ${li("No drone or thermal camera sees through dense canopy: towers watch the forest edge, the drone works in the open.")}
+          ${li("Animal routes are scripted; the risk map uses sample weights until fitted to a division's incident records.")}
+          ${li("The real S500 has flown manually and hop-tested; the autonomous mission shown is simulated. Drone Rules 2021 / forest permissions apply.")}
+          ${li("Sped-up shots are labelled on screen.")}</ul></div>`;
+  }
+  el.innerHTML = h;
+  layer.appendChild(el);
+  s.el = el;
+});
+}
+
+/* ---------------- paint ---------------- */
+function setHoles(s, t) {
+  const holes = LAYOUT[s.layout];
+  const pop = P(t, s.t0, s.t0 + .45, E.outCubic);
+  $("holeCut").innerHTML = holes.map(([, r]) => `<rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" rx="20" fill="#000"/>`).join("");
+  $("shadows").innerHTML = holes.map(([, r]) => `<rect x="${r[0]}" y="${r[1] + 18}" width="${r[2]}" height="${r[3]}" rx="20" fill="rgba(14,20,34,.30)" filter="url(#blur)"/>`).join("");
+  $("rings").innerHTML = holes.map(([, r]) => `<rect x="${r[0] - .5}" y="${r[1] - .5}" width="${r[2] + 1}" height="${r[3] + 1}" rx="20" fill="none" stroke="rgba(14,20,34,.10)" stroke-width="1"/>`).join("");
+  $("paper").style.display = holes.length ? "block" : "none";
+}
+function rise(el, t, tIn, dur = .6) {
+  const p = P(t, tIn, tIn + dur, E.outExpo);
+  el.style.transform = `translateY(${(1 - p) * 115}%)`;
+}
+function renderSeg(s, t) {
+  const lt = t - s.t0, el = s.el;
+  el.querySelectorAll("[data-r]").forEach(r => {
+    const k = +r.dataset.r;
+    if (r.classList.contains("rise")) rise(r, lt, .08 + k * .1);
+    else { const p = P(lt, .05, .45); r.style.opacity = p; r.style.transform = `translateX(${(1 - p) * -16}px)`; }
+  });
+  el.querySelectorAll("[data-f]").forEach(f => { const p = P(lt, .3, .8, E.outCubic); f.style.opacity = p; f.style.transform = `translateY(${(1 - p) * 12}px)`; });
+  el.querySelectorAll("[data-speed]").forEach(b => { const p = P(lt, .45, .8, E.outBack); b.style.transform = `scale(${lerp(.7, 1, p)})`; });
+  // step captions: one at a time, the newest slides up over the previous one
+  if (s.cues) {
+    let cur = -1;
+    s.cues.forEach((c, q) => { if (lt >= c.lt) cur = q; });
+    el.querySelectorAll("[data-cue]").forEach(f => {
+      const q = +f.dataset.cue;
+      if (q !== cur) { f.style.display = "none"; return; }
+      const c = s.cues[q], p = P(lt, c.lt, c.lt + .45, E.outBack), pf = P(lt, c.lt, c.lt + .2);
+      f.style.display = "flex"; f.style.opacity = pf;
+      f.style.transform = `translateY(${(1 - p) * 26}px) scale(${lerp(.96, 1, p)})`;
+    });
+  }
+  if (s.id === "intro" || s.id === "outro") {
+    const L1 = el.querySelector("[data-l1]"), L2 = el.querySelector("[data-l2]"), LF = el.querySelector("[data-lf]");
+    const d1 = P(lt, .1, .9, E.inOutCubic), d2 = P(lt, .6, 1.0, E.outCubic);
+    L1.style.strokeDasharray = 80; L1.style.strokeDashoffset = 80 * (1 - d1);
+    L2.style.strokeDasharray = 15; L2.style.strokeDashoffset = 15 * (1 - d2);
+    const fp = P(lt, .85, 1.25, E.outBack); LF.style.opacity = clamp(fp); LF.style.transformOrigin = "16px 16px"; LF.style.transform = `scale(${lerp(.5, 1, fp)})`;
+    const w = el.querySelector("[data-r]"); rise(w, lt, .7, .7); w.style.letterSpacing = lerp(.42, .2, P(lt, .7, 1.7)) + "em";
+    el.querySelector("[data-line]").style.width = P(lt, 1.0, 1.7) * 100 + "%";
+    el.querySelectorAll("[data-p]").forEach(p => { const k = +p.dataset.p, q = P(lt, 1.3 + k * .12, 1.7 + k * .12, E.outBack); p.style.opacity = clamp(q * 2); p.style.transform = `translateY(${(1 - q) * 14}px)`; p.style.display = "inline-block"; });
+    el.querySelectorAll("[data-f]").forEach(f => { const p = P(lt, 1.9, 2.5, E.outCubic); f.style.opacity = p; f.style.transform = `translateY(${(1 - p) * 14}px)`; });
+    if (s.id === "outro") el.style.opacity = 1 - P(t, DURATION - 1.4, DURATION - .1, E.inOutCubic);
+  }
+  if (["problem", "exists", "honest"].includes(s.id)) {
+    el.querySelectorAll("[data-r]").forEach(r => { if (r.classList.contains("rise")) rise(r, lt, .1 + (+r.dataset.r) * .12, .7); else { const p = P(lt, .05, .45); r.style.opacity = p; } });
+    el.querySelectorAll("[data-g]").forEach((g, k) => { const q = P(lt, .7 + k * .35, 1.2 + k * .35, E.outBack); g.style.opacity = clamp(q * 2); g.style.transform = `translateY(${(1 - q) * 18}px)`; });
+  }
+}
+function renderAt(t) {
+  let cur = SEGS.find(s => t >= s.t0 && t < s.t1) || SEGS[SEGS.length - 1];
+  SEGS.forEach(s => s.el.style.display = s === cur ? "block" : "none");
+  setHoles(cur, t);
+  renderSeg(cur, t);
+  // footage progress
+  const f0 = CUT === "end" ? 0 : SEGS[1].t0, f1 = CUT === "end" ? 1 : segById("honest").t1;
+  $("progress").style.width = (cur.src ? clamp((t - f0) / (f1 - f0)) * 1920 : 0) + "px";
+  // orange slab wipes (cut happens under full cover)
+  const A = $("slabA"), B = $("slabB"); let on = false;
+  for (const tc of WIPES) {
+    if (t < tc - .3 || t > tc + .3) continue;
+    const p = E.inOutQuart(clamp((t - (tc - .3)) / .6));
+    const x = lerp(W + 420, -2600 - 420, p);
+    A.style.transform = `translateX(${x}px) skewX(-14deg)`; B.style.transform = `translateX(${x - 150}px) skewX(-14deg)`;
+    on = true;
+  }
+  A.style.display = B.style.display = on ? "block" : "none";
+}
+
+/* Sound cues for the score, from the same timeline. */
+function sfxEvents() {
+  const ev = [], add = (t, type, v = 1) => ev.push({ t: +t.toFixed(3), type, v });
+  if (CUT === "end") {
+    add(0.02, "impact", 1.1); add(.95, "pop", .8);
+    [1.3, 1.42, 1.54].forEach(t => add(t, "tick", .6));
+    return ev;
+  }
+  add(.1, "pop", .6); add(.9, "pop", .7); add(3.4, "riser", 1.3);
+  WIPES.forEach(t => add(t, "whoosh", 1));
+  SEGS.forEach(s => {
+    if (!s.src) return;
+    add(s.t0 + .1, "tick", .7);
+    s.cues.forEach(c => add(s.t0 + c.lt, c.snd || "tick", c.snd ? .9 : .5));
+  });
+  ["problem", "exists", "honest"].forEach(id => add(segById(id).t0 + .25, "impact", .9));
+  return ev.sort((a, b) => a.t - b.t);
+}
+
+window.sfxEvents = sfxEvents;
+window.ready = (async () => {
+  try { CFG = await (await fetch("wildlife_sources.json", { cache: "no-store" })).json(); } catch (e) { /* defaults */ }
+  DURATION = layoutSegs();
+  WIPES = CUT === "end" ? [0] : ["problem", "exists", "honest"].map(id => segById(id).t0).concat([SEGS[1].t0]);
+  buildDom();
+  window.EDIT = { cut: CUT, segs: SEGS.map(({ el, ...s }) => s), layouts: LAYOUT, src: SRC, duration: DURATION, wipes: WIPES };
+  await Promise.all([500, 600, 700, 800].map(w => document.fonts.load(`${w} 40px Inter`)));
+  await Promise.all([600, 700].map(w => document.fonts.load(`${w} 20px "JetBrains Mono"`)));
+  await document.fonts.ready;
+  window.renderAt = renderAt;
+  renderAt(parseFloat(new URLSearchParams(location.search).get("t") || "0"));
+  return true;
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+{
+ "voice": "en-US-AvaMultilingualNeural",
+ "rate": "-3%",
+ "pitch": "+0Hz",
+ "lines": [
+  {
+   "id": "01_cold_open",
+   "clip": "A1_ColdOpen",
+   "text": "It's night at the forest edge. A thermal camera picks up something big... and warm."
+  },
+  {
+   "id": "02_problem",
+   "clip": "cards",
+   "text": "Every year in India, wild animals and people collide. Elephants alone kill around five hundred people, and leopards and bears add many more. Forests already have cameras. But the moment an animal walks out of frame, it's gone."
+  },
+  {
+   "id": "03_cameras",
+   "clip": "A2_Decoy",
+   "text": "So we put a chain of cameras along the paths wild animals actually use. The AI tells an elephant or a leopard from a cow, so cattle and dogs don't set anything off."
+  },
+  {
+   "id": "04_real_footage",
+   "clip": "real_footage",
+   "text": "And it's the same model on real footage. No retraining."
+  },
+  {
+   "id": "05_tusker",
+   "clip": "tusker card",
+   "text": "Here's the clever part. This tusker walked past two cameras, then turned around. So the drone stays on the ground, and nobody gets a false alarm."
+  },
+  {
+   "id": "06_herd_launch",
+   "clip": "Drone_Dashboard_Split",
+   "text": "But this herd keeps coming. When it reaches the third camera, the path is confirmed, and the drone takes off on its own."
+  },
+  {
+   "id": "07_tracking",
+   "clip": "Drone_Dashboard_Split",
+   "text": "It finds them. Three elephants and a calf. And it follows from twenty-five metres back, working out how long until they reach the village."
+  },
+  {
+   "id": "08_alerts",
+   "clip": "Thermal_Tracking_With_Map",
+   "text": "Forest officers and villagers get a message, in English and Hindi. How many, which way, and how soon."
+  },
+  {
+   "id": "09_leopard",
+   "clip": "Leopard",
+   "text": "It watches for leopards too. This one is picked out by its size."
+  },
+  {
+   "id": "10_villager",
+   "clip": "Phone_Recording+Community_Report_Leopard",
+   "text": "Villagers can report a sighting straight from their phone, and the drone goes to check. If it's busy with elephants, the report simply waits its turn."
+  },
+  {
+   "id": "11_real_drone",
+   "clip": "IMG_28xx",
+   "text": "And this isn't just a simulation. That's our S500, flying for real at night on campus. Same airframe, same ArduPilot firmware."
+  },
+  {
+   "id": "12_fits",
+   "clip": "cards",
+   "text": "SAHARA works with what forests already have: camera towers, camera traps, alert feeds, and villagers' phones. The animal paths here are scripted, and a real deployment would need a model trained on Indian camera-trap images."
+  },
+  {
+   "id": "13_close",
+   "clip": "end_card",
+   "text": "SAHARA. Safe forests, safe villages."
+  }
+ ]
+}

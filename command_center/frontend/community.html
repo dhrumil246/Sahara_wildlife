@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Elephant Alert</title>
+  <!-- Villagers' page (PS000183): the current alert, what to do, and a way
+       to report a sighting. Phone-first, no external resources: it is
+       served by the field laptop and must work without internet. The Hindi
+       text should be checked by a native speaker before real use. -->
+  <style>
+    :root {
+      --bg: #f6f3ee; --card: #ffffff; --text: #1c1917; --dim: #6b645c; --line: #e7e1d8;
+      --green: #15803d; --amber: #b45309; --red: #b91c1c; --blue: #0369a1; --accent: #7c3aed;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #12100e; --card: #1c1917; --text: #f5f2ee; --dim: #a8a29e; --line: #2e2a26;
+        --green: #4ade80; --amber: #fbbf24; --red: #f87171; --blue: #38bdf8; --accent: #a78bfa;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, "Noto Sans Devanagari", sans-serif; }
+    main { max-width: 520px; margin: 0 auto; padding: 16px 16px 40px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    h1 { font-size: 20px; margin: 0; }
+    h2 { font-size: 17px; margin: 0 0 10px; }
+    .lang { display: flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+    .lang button { border: 0; background: transparent; color: var(--text); padding: 6px 12px; font: inherit; font-size: 14px; }
+    .lang button.on { background: var(--text); color: var(--bg); }
+    .banner { border-radius: 16px; padding: 16px; margin-bottom: 14px; color: #fff; background: var(--green); }
+    .banner.watch { background: var(--blue); }
+    .banner.warning { background: var(--amber); }
+    .banner.critical { background: var(--red); animation: pulse 1s ease-in-out infinite alternate; }
+    @keyframes pulse { to { filter: brightness(1.15); } }
+    .banner b { display: block; font-size: 19px; }
+    .banner span { opacity: 0.92; font-size: 15px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+    ul { margin: 0; padding-left: 20px; }
+    li { margin: 6px 0; }
+    li.no::marker { content: "✕  "; color: var(--red); }
+    li.yes::marker { content: "✓  "; color: var(--green); }
+    label { display: block; font-size: 14px; color: var(--dim); margin: 12px 0 6px; }
+    select, input, textarea { width: 100%; font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .map { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); touch-action: manipulation; }
+    .map img { display: block; width: 100%; }
+    .pin { position: absolute; width: 22px; height: 22px; margin: -22px 0 0 -11px; display: none; }
+    .pin svg { width: 22px; height: 22px; fill: var(--accent); stroke: #fff; stroke-width: 1.5; }
+    .loc { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
+    .loc button { flex: none; }
+    .loc small { color: var(--dim); }
+    button.primary { width: 100%; margin-top: 16px; padding: 14px; border: 0; border-radius: 12px; font: inherit; font-weight: 700; background: var(--accent); color: #fff; }
+    button.ghost { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text); font: inherit; font-size: 14px; }
+    .msg { margin-top: 12px; font-size: 15px; }
+    .msg.ok { color: var(--green); }
+    .msg.err { color: var(--red); }
+    .phone { font-size: 22px; font-weight: 700; letter-spacing: 0.03em; }
+    footer { color: var(--dim); font-size: 13px; text-align: center; margin-top: 18px; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 data-t="title">🐘 Elephant Alert</h1>
+    <div class="lang"><button data-lang="en" class="on">English</button><button data-lang="hi">हिन्दी</button></div>
+  </header>
+
+  <div id="banner" class="banner"><b data-t="safe">No elephants reported near the village</b><span id="banner-sub" data-t="safe_sub">The forest cameras are watching.</span></div>
+
+  <section class="card">
+    <h2 data-t="report_h">Report elephants you see</h2>
+    <label for="species" data-t="what">What did you see?</label>
+    <select id="species">
+      <option value="elephant" data-t="sp_elephant">Elephant</option>
+      <option value="leopard" data-t="sp_leopard">Leopard</option>
+      <option value="bear" data-t="sp_bear">Sloth bear</option>
+      <option value="wild boar" data-t="sp_boar">Wild boar</option>
+      <option value="other" data-t="sp_other">Other</option>
+    </select>
+    <div class="row">
+      <div><label for="count" data-t="how_many">How many?</label><input id="count" type="number" min="1" max="50" value="1" inputmode="numeric"></div>
+      <div><label for="note" data-t="note">Note (optional)</label><input id="note" type="text" maxlength="120" placeholder=""></div>
+    </div>
+    <label data-t="where">Where? Tap the map, or use your location</label>
+    <div class="map" id="map"><img src="/basemaps/forest.png" alt="Map of the forest edge, fields and village" id="map-img"><span class="pin" id="pin"><svg viewBox="0 0 24 24"><path d="M12 22s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5" fill="#fff"/></svg></span></div>
+    <div class="loc"><button class="ghost" id="gps" data-t="use_gps">Use my location</button><small id="loc-text"></small></div>
+    <button class="primary" id="send" data-t="send">Send report</button>
+    <div class="msg" id="msg" role="status"></div>
+  </section>
+
+  <section class="card">
+    <h2 data-t="do_h">If elephants are near</h2>
+    <ul>
+      <li class="yes" data-t="do1">Stay indoors. Keep children and livestock inside.</li>
+      <li class="yes" data-t="do2">Keep at least 100 metres away. Give them a clear path back to the forest.</li>
+      <li class="yes" data-t="do3">Move in groups after dark, with a torch.</li>
+      <li class="yes" data-t="do4">Call the forest team and wait for them.</li>
+      <li class="no" data-t="dont1">Do not go near them, chase them or take photos close up.</li>
+      <li class="no" data-t="dont2">Do not throw stones or burst crackers at them. It makes them angry.</li>
+      <li class="no" data-t="dont3">Do not keep stored grain or liquor in the house when elephants are around.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2 data-t="call_h">Forest team helpline</h2>
+    <div class="phone">1926</div>
+    <small data-t="call_note">Example number for this demo. Use your forest division's helpline.</small>
+  </section>
+
+  <footer data-t="footer">Forest department · Human-elephant conflict early warning</footer>
+</main>
+
+<script>
+const T = {
+  hi: {
+    title: "🐘 हाथी चेतावनी", safe: "गाँव के पास कोई हाथी नहीं", safe_sub: "जंगल के कैमरे निगरानी कर रहे हैं।",
+    report_h: "देखे गए हाथियों की सूचना दें", what: "आपने क्या देखा?", sp_elephant: "हाथी", sp_leopard: "तेंदुआ",
+    sp_bear: "भालू", sp_boar: "जंगली सूअर", sp_other: "अन्य", how_many: "कितने?", note: "टिप्पणी (वैकल्पिक)",
+    where: "कहाँ? नक्शे पर टैप करें, या अपनी लोकेशन दें", use_gps: "मेरी लोकेशन", send: "सूचना भेजें",
+    do_h: "अगर हाथी पास हों", do1: "घर के अंदर रहें। बच्चों और पशुओं को अंदर रखें।",
+    do2: "कम से कम 100 मीटर दूर रहें। उन्हें जंगल लौटने का रास्ता दें।", do3: "अंधेरे में समूह में और टॉर्च के साथ चलें।",
+    do4: "वन विभाग की टीम को फ़ोन करें और उनका इंतज़ार करें।", dont1: "उनके पास न जाएँ, पीछा न करें, पास से फ़ोटो न लें।",
+    dont2: "पत्थर न फेंकें, पटाखे न फोड़ें। इससे वे भड़कते हैं।", dont3: "हाथियों के आसपास होने पर घर में अनाज या शराब न रखें।",
+    call_h: "वन विभाग हेल्पलाइन", call_note: "इस डेमो के लिए उदाहरण नंबर। अपने वन मंडल की हेल्पलाइन लें।",
+    footer: "वन विभाग · मानव-हाथी संघर्ष पूर्व चेतावनी",
+  },
+};
+const EN = {};
+document.querySelectorAll("[data-t]").forEach((el) => (EN[el.dataset.t] = el.textContent));
+const LIVE = {
+  en: { watch: ["Elephants seen in the forest", "The forest team is watching them."],
+        warning: ["Elephants have left the forest", "They are near the fields. Bring children and livestock inside."],
+        critical: ["DANGER: elephants near the village", "Stay indoors. Do not go near them. The forest team is on the way."] },
+  hi: { watch: ["जंगल में हाथी देखे गए", "वन विभाग की टीम नज़र रख रही है।"],
+        warning: ["हाथी जंगल से बाहर आ गए हैं", "वे खेतों के पास हैं। बच्चों और पशुओं को अंदर रखें।"],
+        critical: ["खतरा: हाथी गाँव के पास", "घर के अंदर रहें। पास न जाएँ। वन टीम रास्ते में है।"] },
+};
+let lang = "en";
+let level = "none";
+let herd = null;
+function t(key) { return (lang === "hi" && T.hi[key]) || EN[key]; }
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach((el) => (el.textContent = t(el.dataset.t)));
+  document.querySelectorAll(".lang button").forEach((b) => b.classList.toggle("on", b.dataset.lang === lang));
+  renderBanner();
+}
+document.querySelectorAll(".lang button").forEach((b) => (b.onclick = () => {
+  lang = b.dataset.lang;
+  try { localStorage.setItem("lang", lang); } catch (e) { /* private mode */ }
+  applyLang();
+}));
+try { lang = localStorage.getItem("lang") || "en"; } catch (e) { /* private mode */ }
+
+function renderBanner() {
+  const el = document.getElementById("banner");
+  el.className = `banner ${level === "none" ? "" : level}`;
+  const head = el.querySelector("b");
+  const sub = el.querySelector("span");
+  if (level === "none" || !LIVE[lang][level]) { head.textContent = t("safe"); sub.textContent = t("safe_sub"); return; }
+  const [h, s] = LIVE[lang][level];
+  head.textContent = h;
+  const dist = herd ? (lang === "hi" ? ` गाँव से ${Math.round(herd.village_dist_m)} मीटर।` : ` ${Math.round(herd.village_dist_m)} m from the village.`) : "";
+  sub.textContent = s + dist;
+}
+
+async function poll() {
+  try {
+    const res = await fetch("/api/map/latest");
+    if (res.ok) {
+      const d = await res.json();
+      const w = d.wildlife || {};
+      level = w.level || "none";
+      herd = w.herd || null;
+      bounds = d.basemap || bounds;
+      renderBanner();
+    }
+  } catch (e) { /* field laptop restarting */ }
+  setTimeout(poll, 3000);
+}
+
+// Location: a tap on the map (basemap: e0/n0/w/h metres) or the phone's GPS.
+let bounds = { e0: -100, n0: -100, w: 200, h: 200 };
+let where = null;
+const map = document.getElementById("map");
+const pin = document.getElementById("pin");
+map.addEventListener("click", (ev) => {
+  const r = map.getBoundingClientRect();
+  const fx = (ev.clientX - r.left) / r.width;
+  const fy = (ev.clientY - r.top) / r.height;
+  where = { e: +(bounds.e0 + fx * bounds.w).toFixed(1), n: +(bounds.n0 + (1 - fy) * bounds.h).toFixed(1) };
+  pin.style.left = `${fx * 100}%`;
+  pin.style.top = `${fy * 100}%`;
+  pin.style.display = "block";
+  document.getElementById("loc-text").textContent = lang === "hi" ? "नक्शे पर चुना गया" : "Picked on the map";
+});
+document.getElementById("gps").onclick = () => {
+  const txt = document.getElementById("loc-text");
+  if (!navigator.geolocation) { txt.textContent = "GPS not available"; return; }
+  txt.textContent = "…";
+  navigator.geolocation.getCurrentPosition(
+    (p) => { where = { lat: p.coords.latitude, lon: p.coords.longitude }; pin.style.display = "none";
+             txt.textContent = `${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)}`; },
+    () => { txt.textContent = lang === "hi" ? "लोकेशन नहीं मिली — नक्शे पर टैप करें" : "No location - tap the map instead"; },
+    { enableHighAccuracy: true, timeout: 10000 });
+};
+
+document.getElementById("send").onclick = async () => {
+  const msg = document.getElementById("msg");
+  if (!where) { msg.className = "msg err"; msg.textContent = lang === "hi" ? "पहले जगह चुनें।" : "Pick the place first."; return; }
+  const body = { species: document.getElementById("species").value, count: +document.getElementById("count").value || 1,
+                 note: document.getElementById("note").value, ...where };
+  try {
+    const res = await fetch("/api/community/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const r = await res.json();
+    msg.className = `msg ${r.ok ? "ok" : "err"}`;
+    msg.textContent = r.ok ? (lang === "hi" ? "धन्यवाद — वन टीम को आपकी सूचना मिल गई।" : r.message) : r.message;
+  } catch (e) {
+    msg.className = "msg err";
+    msg.textContent = "Could not send. Call the helpline.";
+  }
+};
+
+applyLang();
+poll();
+</script>
+</body>
+</html>
